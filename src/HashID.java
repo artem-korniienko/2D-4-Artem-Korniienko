@@ -10,15 +10,46 @@ import java.security.MessageDigest;
 public class HashID {
 
     public static byte [] computeHashID(String line) throws Exception {
-	if (line.endsWith("\n")) {
-	    // What this does and how it works is covered in a later lecture
-	    MessageDigest md = MessageDigest.getInstance("SHA-256");
-	    md.update(line.getBytes(StandardCharsets.UTF_8));
-	    return md.digest();
+		if (line.endsWith("\n")) {
+			// What this does and how it works is covered in a later lecture
+			MessageDigest md = MessageDigest.getInstance("SHA-256");
+			md.update(line.getBytes(StandardCharsets.UTF_8));
+			return md.digest();
 
-	} else {
-	    // 2D#4 computes hashIDs of lines, i.e. strings ending with '\n'
-	    throw new Exception("No new line at the end of input to HashID");
+		} else {
+			// 2D#4 computes hashIDs of lines, i.e. strings ending with '\n'
+			throw new Exception("No new line at the end of input to HashID");
+		}
 	}
-    }
-}
+
+	public static String bytesToHex(byte[] bytes) {
+		StringBuilder hexString = new StringBuilder();
+		for (byte b : bytes) {
+			String hex = Integer.toHexString(0xFF & b);
+			hexString.append(hex);
+		}
+		return hexString.toString();
+	}
+
+	public static String hexToBinary(String hexString) {
+		StringBuilder binaryString = new StringBuilder();
+		for (int i = 0; i < hexString.length(); i++) {
+			String binary = Integer.toBinaryString(Integer.parseInt(hexString.substring(i, i + 1), 16));
+			while (binary.length() < 4) {
+				binary = "0" + binary;
+			}
+			binaryString.append(binary);
+		}
+		return binaryString.toString();
+	}
+
+	public static void main(String[] args) throws Exception
+	{
+		byte[] hashID = computeHashID("martin.brain@city.ac.uk:MyCoolImplementation,1.41,test-node-2\n");
+		for (byte b : hashID)
+		{
+			System.out.println(b);
+		}
+		System.out.println(bytesToHex(hashID));
+		System.out.println(hexToBinary(bytesToHex(hashID)));
+	}}
