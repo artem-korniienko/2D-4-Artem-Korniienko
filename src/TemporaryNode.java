@@ -7,6 +7,13 @@
 // YOUR_EMAIL_GOES_HERE
 
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.net.InetAddress;
+import java.net.Socket;
+
 // DO NOT EDIT starts
 interface TemporaryNodeInterface {
     public boolean start(String startingNodeName, String startingNodeAddress);
@@ -17,12 +24,7 @@ interface TemporaryNodeInterface {
 
 
 public class TemporaryNode implements TemporaryNodeInterface {
-    public String startingNodeName;
-    public byte[] startingNodeHashID;
-    public String startingNodeIpAddress;
-    public int startingNodePortNumber;
-
-
+    public StartingNode startingNode;
     public String nodeName;
     public byte[] hashID;
 
@@ -42,21 +44,47 @@ public class TemporaryNode implements TemporaryNodeInterface {
 
         // Setup fields with information about starting node
         if (Validator.isValidName(startingNodeName)) //Check weather input name is correct
-            this.startingNodeName = startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n"; // everything that is hashed should end with newline character
+            startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n"); // everything that is hashed should end with newline character)
         else
             throw new RuntimeException("Incorrect name");
 
         // Handling exceptions for absence of newline characters
         try {
-            startingNodeHashID = HashID.computeHashID(startingNodeName);
+            startingNode.setStartingNodeHashID(HashID.computeHashID(startingNodeName));
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         // Setup of ip address and port number of starting node
         if (Validator.isValidAddress(startingNodeAddress)) {
-            startingNodeIpAddress = startingNodeIpAddress.split(":")[0];
-            startingNodePortNumber = Integer.parseInt(startingNodeIpAddress.split(":")[1]);
+            startingNode.setStartingNodeIpAddress(startingNodeAddress.split(":")[0]);
+            startingNode.setStartingNodePortNumber(Integer.parseInt(startingNodeAddress.split(":")[1]));
+        }
+
+        try {
+
+            InetAddress host = InetAddress.getByName(startingNode.getStartingNodeIpAddress());
+
+            int port = startingNode.getStartingNodePortNumber();
+
+            System.out.println("TCPClient connecting to " + host.toString() + ":" + port);
+            Socket clientSocket = new Socket(host, port);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+            Writer writer = new OutputStreamWriter(clientSocket.getOutputStream());
+
+            System.out.println("Sending a message to the server");
+            writer.write("Hello Server!\n");
+            writer.flush();
+
+            String response = reader.readLine();
+            System.out.println("The server said : " + response);
+
+            // Close down the connection
+            clientSocket.close();
+        }
+        catch (Exception e){
+
         }
 	// Implement this!
 	// Return true if the 2D#4 network can be contacted
