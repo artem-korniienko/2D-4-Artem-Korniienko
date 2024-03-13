@@ -23,9 +23,12 @@ public class HashID {
 	}
 
 	public static String bytesToHex(byte[] bytes) {
-		StringBuilder hexString = new StringBuilder();
+		StringBuilder hexString = new StringBuilder(2 * bytes.length);
 		for (byte b : bytes) {
 			String hex = Integer.toHexString(0xFF & b);
+			if (hex.length() == 1) {
+				hexString.append('0');
+			}
 			hexString.append(hex);
 		}
 		return hexString.toString();
@@ -43,6 +46,24 @@ public class HashID {
 		return binaryString.toString();
 	}
 
+	public static int distance(byte[] hashID1, byte[] hashID2)
+	{
+		int distance = 256;
+		int similarBits = 0;
+
+		String hashIDS1 = hexToBinary(bytesToHex(hashID1));
+		String hashIDS2 = hexToBinary(bytesToHex(hashID2));
+
+		while (hashIDS1.charAt(similarBits) == hashIDS2.charAt(similarBits))
+		{
+			similarBits++;
+			if (similarBits == 256)
+				break;
+		}
+
+		return distance - similarBits;
+	}
+
 	public static void main(String[] args) throws Exception
 	{
 		byte[] hashID = computeHashID("martin.brain@city.ac.uk:MyCoolImplementation,1.41,test-node-2\n");
@@ -50,6 +71,7 @@ public class HashID {
 		{
 			System.out.println(b);
 		}
-		System.out.println(bytesToHex(hashID));
+		System.out.println(bytesToHex(computeHashID("Hello World!\n")));
 		System.out.println(hexToBinary(bytesToHex(hashID)));
+		System.out.println(distance(computeHashID("ananus\n"), computeHashID("ananus\n")));
 	}}
