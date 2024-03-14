@@ -93,124 +93,84 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         counter++; // For naming purposes
 
         try {
-            InetAddress startingNodeHost = InetAddress.getByName(startingNode.getStartingNodeIpAddress());
-            int startingNodePort = startingNode.getStartingNodePortNumber();
-            if (ipAddress.equals(startingNodeHost.getHostAddress()) && portNumber == startingNodePort) {
+            if (ipAddress.equals(startingNode.getStartingNodeIpAddress()) && portNumber == startingNode.getStartingNodePortNumber()) {
                 System.out.println("Opened starting node on port " + portNumber);
-                String message = "NULL";
-                while (!message.contains("END")) {
-
+                while (true) {
                     Socket clientSocket = serverSocket.accept();
                     System.out.println("Client connected!");
 
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                     Writer writer = new OutputStreamWriter(clientSocket.getOutputStream());
 
-                    message = reader.readLine();
-                    if (message.contains("START"))
-                    {
-                        System.out.println("Starting node have accepted connection.");
+                    String message = reader.readLine();
+                    if (message != null && message.startsWith("START")) {
+                        System.out.println("Starting node accepted connection.");
+                        writer.write(sendStartMessage());
+                        writer.flush();
+                        handleRequest(reader, writer);
+                    } else {
+                        throw new RuntimeException("Incorrect communication initialization.");
                     }
-                    else
-                    {
-                        throw new RuntimeException("Incorrect communication initialisation.");
-                    }
-                    while (message.contains("END"))
-                    {
-                        BufferedReader clientReaderC = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                        Writer clientWriterC = new OutputStreamWriter(clientSocket.getOutputStream());
-                        message = clientReaderC.readLine();
-                        switch (message)
-                        {
-                            case "ECHO?":
-                                writer.write(sendOhceMessage());
-                                writer.flush();
-                                break;
-                            default:
-                                break;
-                        }
-                    }
-
-
-                    System.out.println("Sending a message to the client");
-                    writer.write(sendStartMessage());
-                    writer.flush();
 
                     clientSocket.close();
                 }
             } else {
                 System.out.println("This is not the starting node. Connecting to starting node...");
-                socket = new Socket(startingNodeHost, startingNodePort);
+                Socket socket = new Socket(startingNode.getStartingNodeIpAddress(), startingNode.getStartingNodePortNumber());
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
-                System.out.println(sendStartMessage());
-                writer.write(sendStartMessage());
+                writer.write(sendStartMessage() + "\n");
                 writer.flush();
 
                 String response = reader.readLine();
-                if (response.contains("START")) {
+                if (response != null && response.startsWith("START")) {
                     System.out.println("Connection established");
-                }
-                else
-                {
-                    throw new RuntimeException("Incorrect communication initialisation");
-                }
-                sendEchoMessageToTheStartingNode();
-                String clientMessage = "NULL";
+                    writer.write(sendEchoMessage() + "\n");
+                    writer.flush();
 
-                while (!clientMessage.contains("END")) {
-                    Socket clientSocket = serverSocket.accept();
-                    System.out.println("Client connected!");
 
-                    BufferedReader clientReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                    Writer clientWriter = new OutputStreamWriter(clientSocket.getOutputStream());
-
-                    clientMessage = reader.readLine();
-                    if (clientMessage.contains("START"))
-                    {
-                        System.out.println("Full node have accepted connection.");
-
-                        while (!clientMessage.contains("END"))
-                        {
-                            BufferedReader clientReaderC = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-                            Writer clientWriterC = new OutputStreamWriter(clientSocket.getOutputStream());
-                            clientMessage = clientReaderC.readLine();
-                            switch (clientMessage)
-                            {
-                                case "ECHO?":
-                                    writer.write(sendOhceMessage());
-                                    writer.flush();
-                                    break;
-                                default:
-                                    break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        throw new RuntimeException("Incorrect communication initialisation");
-                    }
+                    handleRequest(reader, writer);
+                } else {
+                    throw new RuntimeException("Incorrect communication initialization");
                 }
 
                 socket.close();
             }
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
-
-
-
-
-
         // Implement this!
-        return;
+        //return;
     }
 
+
+    public void sendEchoMessage(Socket socket) throws IOException {
+        try (Writer writer = new OutputStreamWriter(socket.getOutputStream())) {
+            writer.write(sendEchoMessage() + "\n");
+            writer.flush();
+        }
+    }
+    private void handleRequest(BufferedReader reader, Writer writer) throws IOException {
+        String response;
+        while ((response = reader.readLine()) != null) {
+            if (response.startsWith("ECHO?")) {
+                System.out.println("Received ECHO? request");
+                writer.write(sendOhceMessage() + "\n");
+                writer.flush();
+            }
+            else if (response.equals("OHCE"))
+            {
+                System.out.println("Received OHCE");
+            }
+            else if (response.equals("END")) {
+                System.out.println("Received END request. Closing connection.");
+                break;
+            }
+        }
+    }
 
     public void sendEchoMessageToTheStartingNode() {
         try {

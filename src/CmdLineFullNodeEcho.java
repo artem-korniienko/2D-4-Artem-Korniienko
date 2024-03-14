@@ -1,41 +1,50 @@
+
+import java.net.Socket;
+
+
 public class CmdLineFullNodeEcho {
+    public CmdLineFullNodeEcho() {
+    }
+
     public static void main(String[] args) {
         if (args.length != 4) {
             System.err.println("Usage error!");
-            System.err.println("DSTStoreCmdLine startingNodeName startingNodeAddress ipAddress portNumber");
-            return;
+            System.err.println("CmdLineFullNode startingNodeName startingNodeAddress ipAddress portNumber");
         } else {
-            // A full node that is running on the network to be a first point of contact
             String startingNodeName = args[0];
             String startingNodeAddress = args[1];
-
-            // These give the IP Address and port for other nodes to contact this one
             String ipAddress = args[2];
+
             int portNumber;
             try {
                 portNumber = Integer.parseInt(args[3]);
-            } catch (Exception e) {
+            } catch (Exception var6) {
                 System.err.println("Exception parsing the port number");
-                System.err.println(e);
+                System.err.println(var6);
                 return;
             }
 
-
-            // Use a FullNode object to be a full participant in the 2D#4 network
             FullNode fn = new FullNode();
-
-            // Full nodes need to be able to accept incoming connections
             if (fn.listen(ipAddress, portNumber)) {
-
-                // Become part of the network
-
-                fn.handleIncomingConnections(startingNodeName, startingNodeAddress);
-
+                Thread handleConnectionsThread = new Thread(() -> {
+                    fn.handleIncomingConnections(startingNodeName, startingNodeAddress);
+                });
+                handleConnectionsThread.start();
+                testEchoMessage(fn, startingNodeAddress);
             } else {
                 System.err.println("Could not listen for incoming connections");
             }
+        }
+    }
 
-            return;
+    private static void testEchoMessage(FullNode fn, String startingNodeAddress) {
+        try {
+            Thread.sleep(100);
+            Socket socket = new Socket(startingNodeAddress.split(":")[0], Integer.parseInt(startingNodeAddress.split(":")[1]));
+            fn.sendEchoMessage(socket);
+            socket.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }
