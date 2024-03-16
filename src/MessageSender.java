@@ -4,7 +4,7 @@ public abstract class MessageSender {
     public String ipAddress = null;
     public int portNumber = 0;
     public final String emailAddress = "artem.korniienko@city.ac.uk";
-    public float maxSupportedVersion = 1;
+    public String maxSupportedVersion = "1.0";
 
     String sendStartMessage()
     {

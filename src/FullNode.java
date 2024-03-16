@@ -14,11 +14,12 @@ import java.io.Writer;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashMap;
 
 // DO NOT EDIT starts
 interface FullNodeInterface {
     public boolean listen(String ipAddress, int portNumber);
-    public void handleIncomingConnections(String startingNodeName, String startingNodeAddress);
+    public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) throws Exception;
 }
 // DO NOT EDIT ends
 
@@ -26,7 +27,6 @@ interface FullNodeInterface {
 public class FullNode extends MessageSender implements FullNodeInterface {
 
     public StartingNode startingNode;
-
     public String nodeName;
     public byte[] hashID;
     public String ipAddress;
@@ -35,6 +35,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     private static int counter = 0; // For naming purposes
     public float maxSupportedVersion = 1;
     public boolean connectionAccepted = false;
+
+    public HashMap<Integer, List<String>> networkMap;
 
     Socket socket;
     ServerSocket serverSocket;
@@ -55,7 +57,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // Return false otherwise;
     }
 
-    public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
+    public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) throws Exception {
 
         // Create name for current node
         nodeName = nameGenerator("");
@@ -92,6 +94,9 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
         counter++; // For naming purposes
 
+        networkMap = new HashMap<>();
+        networkMap.put(nodeName, HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(nodeName)));
+
         try {
             if (ipAddress.equals(startingNode.getStartingNodeIpAddress()) && portNumber == startingNode.getStartingNodePortNumber()) {
                 System.out.println("Opened starting node on port " + portNumber);
@@ -102,11 +107,16 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                     BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
                     Writer writer = new OutputStreamWriter(clientSocket.getOutputStream());
 
+                    writer.write(sendStartMessage());
+                    writer.flush();
+
                     String message = reader.readLine();
-                    if (message != null && message.startsWith("START")) {
+                    String[] returnStartMessage = message.split(" ");
+                    if (returnStartMessage[0].equals("START") &&
+                        returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
+                        && Validator.isValidName(returnStartMessage[2])) {
                         System.out.println("Starting node accepted connection.");
-                        writer.write(sendStartMessage());
-                        writer.flush();
+                        networkMap.put(returnStartMessage[2], HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(returnStartMessage[2]))); // returnStartMessage[2] - name of the connected node
                         handleRequest(reader, writer);
                     } else {
                         throw new RuntimeException("Incorrect communication initialization.");
@@ -121,16 +131,19 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
-                writer.write(sendStartMessage() + "\n");
-                writer.flush();
-
-                String response = reader.readLine();
-                if (response != null && response.startsWith("START")) {
+                String message = reader.readLine();
+                String[] returnStartMessage = message.split(" ");
+                if (returnStartMessage[0].equals("START")
+                        && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
+                        && Validator.isValidName(returnStartMessage[2])) {
                     System.out.println("Connection established");
+                    writer.write(sendStartMessage() + "\n");
+                    writer.flush();
+
                     writer.write(sendEchoMessage() + "\n");
                     writer.flush();
 
-
+                    networkMap.put(returnStartMessage[2], HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(returnStartMessage[2]))); // returnStartMessage[2] - name of the connected node networkMap.put(returnStartMessage[2], HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(returnStartMessage[2]))); // returnStartMessage[2] - name of the connected node
                     handleRequest(reader, writer);
                 } else {
                     throw new RuntimeException("Incorrect communication initialization");
@@ -153,44 +166,52 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             writer.flush();
         }
     }
-    private void handleRequest(BufferedReader reader, Writer writer) throws IOException {
+    private void handleRequest(BufferedReader reader, Writer writer) throws Exception {
         String response;
         while ((response = reader.readLine()) != null) {
             if (response.startsWith("ECHO?")) {
                 System.out.println("Received ECHO? request");
                 writer.write(sendOhceMessage() + "\n");
                 writer.flush();
-            }
-            else if (response.equals("OHCE"))
-            {
+            } else if (response.equals("OHCE")) {
                 System.out.println("Received OHCE");
-            }
-            else if (response.equals("END")) {
+            } else if (response.startsWith("PUT?")) {
+                String[] parts = response.split(" ");
+                if (parts.length >= 4) {
+                    int keyLines = Integer.parseInt(parts[1]);
+                    int valueLines = Integer.parseInt(parts[2]);
+
+                    StringBuilder keyBuilder = new StringBuilder();
+                    StringBuilder valueBuilder = new StringBuilder();
+                    for (int i = 0; i < keyLines; i++) {
+                        keyBuilder.append(reader.readLine()).append("\n");
+                    }
+                    for (int i = 0; i < valueLines; i++) {
+                        valueBuilder.append(reader.readLine()).append("\n");
+                    }
+                    // Compute hash ID for the value
+                    byte[] requestHASHID = HashID.computeHashID(keyBuilder.toString());
+                    // Determine if the current node should store the value
+                    // (logic to check network directory and hash ID distance)
+                    // For now, assume always SUCCESS
+                    String putResponse = "SUCCESS\n";
+                    writer.write(putResponse);
+                    writer.flush();
+                } else {
+                    System.out.println("Invalid PUT request format");
+                    // Respond with an error message
+                    writer.write("ERROR: Invalid PUT request format\n");
+                    writer.flush();
+                }
+            } else if (response.equals("END")) {
                 System.out.println("Received END request. Closing connection.");
                 break;
             }
         }
     }
 
-    public void sendEchoMessageToTheStartingNode() {
-        try {
-                System.out.println("Sending ECHO message to starting node...");
-
-
-
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-                    Writer writer = new OutputStreamWriter(socket.getOutputStream());
-
-
-                    writer.write("ECHO?\n");
-                    writer.flush();
-
-                    String response = reader.readLine();
-                    System.out.println("Response from starting node: " + response);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-
+    HashMap<String, Integer> findThreeNearestNodes(String hashID)
+    {
 
     }
     public String nameGenerator(String nodeInfo) {
