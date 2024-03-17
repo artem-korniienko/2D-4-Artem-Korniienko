@@ -8,19 +8,23 @@ public abstract class MessageSender {
 
     String sendStartMessage()
     {
-        return "START " + String.valueOf(maxSupportedVersion) + " " + nodeName;
+        return "START " + Float.parseFloat(maxSupportedVersion) + " " + nodeName;
     }
     String sendEndMessage(String reason)
     {
-        return "END " + reason;
+        return "END " + reason + "\n";
     }
     String sendEchoMessage()
     {
-        return "ECHO?";
+        return "ECHO?\n";
     }
     String sendOhceMessage()
     {
         return "OHCE";
     }
+    String sendSuccessMessage() {return "SUCCESS\n"; }
+    String sendFailedMessage() {return "FAILED\n"; }
+    String sendNopeMessage() {return "NOPE\n"; }
+    String sendValueMessage(int amountOfLines, String value) {return "VALUE " + amountOfLines + "\n" + value; }
 
 }

@@ -41,7 +41,7 @@ public class CmdLineFullNodeEcho {
         try {
             Thread.sleep(100);
             Socket socket = new Socket(startingNodeAddress.split(":")[0], Integer.parseInt(startingNodeAddress.split(":")[1]));
-            fn.sendEchoMessage(socket);
+            fn.sendPutMessage(socket);
             socket.close();
         } catch (Exception e) {
             e.printStackTrace();
