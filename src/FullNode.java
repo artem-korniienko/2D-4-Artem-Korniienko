@@ -72,6 +72,15 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
         // Create name for current node
 
+        // TODO: Temperary node implementaion
+        // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
+        // TODO: check that we have recieved NOTIFIED Correctly look line number 146
+        // TODO: ensure that I delete nodes from map ones they are disconnected
+        // TODO: check and refactor code if needed
+        // TODO: reared specification and carefully test with lots of nodes
+        // TODO: submit :)
+
+
         // Setup fields with information about starting node
         if (Validator.isValidName(startingNodeName))
             startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");
