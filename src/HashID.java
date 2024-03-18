@@ -6,6 +6,7 @@
 import java.lang.StringBuilder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Scanner;
 
 public class HashID {
 
@@ -36,6 +37,16 @@ public class HashID {
 			hexString.append(hex);
 		}
 		return hexString.toString();
+	}
+
+	public static byte[] hexToBytes(String hexString) {
+		int len = hexString.length();
+		byte[] data = new byte[len / 2];
+		for (int i = 0; i < len; i += 2) {
+			data[i / 2] = (byte) ((Character.digit(hexString.charAt(i), 16) << 4)
+					+ Character.digit(hexString.charAt(i + 1), 16));
+		}
+		return data;
 	}
 
 	public static String hexToBinary(String hexString) {
@@ -70,12 +81,21 @@ public class HashID {
 
 	public static void main(String[] args) throws Exception
 	{
-		byte[] hashID = computeHashID("martin.brain@city.ac.uk:MyCoolImplementation,1.41,test-node-2\n");
-		for (byte b : hashID)
-		{
-			System.out.println(b);
+//		byte[] hashID = computeHashID("martin.brain@city.ac.uk:MyCoolImplementation,1.41,test-node-2\n");
+//		for (byte b : hashID)
+//		{
+//			System.out.println(b);
+//		}
+//		System.out.println(bytesToHex(computeHashID("Hello World!\n")));
+//		System.out.println(hexToBinary(bytesToHex(hashID)));
+//		System.out.println(distance(computeHashID("ananus\n"), computeHashID("ananus\n")));
+		Scanner scanner = new Scanner(System.in);
+
+		while (true) {
+			System.out.print("Enter a string: ");
+			String input = scanner.nextLine();
+
+			String hexString = bytesToHex(computeHashID((input + "\n")));
+			System.out.println("Hexadecimal representation: " + hexString);
 		}
-		System.out.println(bytesToHex(computeHashID("Hello World!\n")));
-		System.out.println(hexToBinary(bytesToHex(hashID)));
-		System.out.println(distance(computeHashID("ananus\n"), computeHashID("ananus\n")));
 	}}

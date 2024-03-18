@@ -15,6 +15,9 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 // DO NOT EDIT starts
 interface FullNodeInterface {
@@ -105,7 +108,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             while (true) {
                 System.out.println("Listening for incoming connections...");
                 if (!isStartingNode()) { // If not the starting node, connect to the previous node
-                    connectToPreviousNode();
+                    connectToStartingNode();
                 }
 
                 try {
@@ -125,7 +128,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         return ipAddress.equals(startingNode.getStartingNodeIpAddress()) && portNumber == startingNode.getStartingNodePortNumber();
     }
 
-    private void connectToPreviousNode() {
+    private void connectToStartingNode() {
         try {
             Socket socket = new Socket(startingNode.getStartingNodeIpAddress(), startingNode.getStartingNodePortNumber());
 
@@ -142,8 +145,9 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 throw new RuntimeException("Failed to connect to previous node");
             }
 
+            // Close the socket after all tasks are executed
             socket.close();
-        } catch (IOException e) {
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }
@@ -184,7 +188,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         thread.start();
     }
 
-    public void addMapElement(String addedNodeName) throws Exception {
+    public synchronized void addMapElement(String addedNodeName) throws Exception {
         int distance = calculateDistance(addedNodeName);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
 
@@ -192,9 +196,29 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             // Remove the oldest node
             nodeList.remove(0);
         }
+        String nodeWithAddress = addedNodeName + " NN:NN";
+        if (addedNodeName.equals(this.nodeName)) {
+            nodeWithAddress =  addedNodeName + " " + ipAddress + ":" + portNumber;
+        }
+        if (!nodeList.contains(nodeWithAddress)) {
+            nodeList.add(nodeWithAddress);
+            networkMap.put(distance, nodeList);
+        }
+    }
+    public synchronized void addMapElement(String addedNodeName, String addedNodeAddress) throws Exception {
+        int distance = calculateDistance(addedNodeName);
+        List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
 
-        if (!nodeList.contains(addedNodeName)) {
-            nodeList.add(addedNodeName + " " + ipAddress + ":" + portNumber);
+        if (nodeList.size() >= 3) {
+            // Remove the oldest node
+            nodeList.remove(0);
+        }
+        String nodeWithAddress = addedNodeName + " " + addedNodeAddress;
+        if (addedNodeName.equals(this.nodeName)) {
+            nodeWithAddress =  addedNodeName + " " + ipAddress + ":" + portNumber;
+        }
+        if (!nodeList.contains(nodeWithAddress)) {
+            nodeList.add(nodeWithAddress);
             networkMap.put(distance, nodeList);
         }
     }
@@ -202,6 +226,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     {
         return HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(secondNodeName));
     }
+
     public void sendEchoMessage(Socket socket) throws IOException {
         try (Writer writer = new OutputStreamWriter(socket.getOutputStream())) {
             writer.write(sendEchoMessage() + "\n");
@@ -227,10 +252,65 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             {
                 writer.write(getNetworkMap());
                 writer.flush();
-            } else if (response.equals("NOTIFY?")){
+            } else if (response.startsWith("NEAREST?")) {
+                String[] parts = response.split(" ");
+                if (parts.length == 2) {
+                    HashMap<String, Integer> nearest = findThreeNearestNodes(parts[1]);
+                    writer.write(sendNodesMessage(nearest));
+                    writer.flush();
+                }
+                else {
+                    writer.write(sendEndMessage("Incorrect NEAREST? request use"));
+                    writer.flush();
+                }
+            } else if (response.contains("NOTIFY?")){
 
-            } else if (response.contains("GET?"))
-            {
+                boolean contains = false;
+                StringBuilder nameBuilder = new StringBuilder();
+                StringBuilder addressBuilder = new StringBuilder();
+                StringBuilder newAddress = new StringBuilder();
+                for (int i = 0; i < 1; i++) {
+                    nameBuilder.append(reader.readLine());
+                }
+                for (int i = 0; i < 1; i++) {
+                    addressBuilder.append(reader.readLine());
+                }
+
+                for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
+                    List<String> nodeList = entry.getValue();
+                    for (int i = 0; i < nodeList.size(); i++) {
+                        String nameAddress = nodeList.get(i);
+                        if (nameAddress.contains(nameBuilder.toString())) {
+                            String[] addressArray = nameAddress.split(" ");
+                            addressArray[1] = addressBuilder.toString().trim();
+                            newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
+                            nodeList.set(i, newAddress.toString());
+                            contains = true;
+                            break;
+                        }
+                    }
+                }
+                if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
+                {
+                    addMapElement(nameBuilder.toString());
+                    for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
+                        List<String> nodeList = entry.getValue();
+                        for (int i = 0; i < nodeList.size(); i++) {
+                            String nameAddress = nodeList.get(i);
+                            if (nameAddress.contains(nameBuilder.toString())) {
+                                String[] addressArray = nameAddress.split(" ");
+                                addressArray[1] = addressBuilder.toString().trim();
+                                newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
+                                nodeList.set(i, newAddress.toString());
+                                contains = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                writer.write(sendNotifiedMessage());
+                writer.flush();
+            } else if (response.contains("GET?")) {
                 String[] parts = response.split(" ");
                 boolean contains = false;
 
@@ -287,7 +367,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                     HashMap<String, Integer> threeNearestNodes = findThreeNearestNodes(requestHASHID);
                     for (Map.Entry<String, Integer> entry : threeNearestNodes.entrySet())
                     {
-                        if (entry.getKey().equals(nodeName))
+                        if (entry.getKey().contains(nodeName))
                             shouldContain = true;
                     }
                     if (shouldContain)
@@ -313,6 +393,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 }
             } else if (response.contains("END")) {
                 System.out.println("Received END request. Closing connection.");
+                writer.write(sendEndMessage("Recieved END request"));
+                writer.flush();
                 break;
             }
             else {
@@ -364,7 +446,10 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
         return result.toString();
     }
-
+    HashMap<String, Integer> findThreeNearestNodes(String hashID) throws Exception
+    {
+        return findThreeNearestNodes(HashID.hexToBytes(hashID));
+    }
     HashMap<String, Integer> findThreeNearestNodes(byte[] hashID) throws Exception
     {
         HashMap<String, Integer> nearestNodes = new HashMap<>();
@@ -374,19 +459,20 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
             int distance = entry.getKey();
             for (String node : entry.getValue()) {
-                int nodeDistance = HashID.distance(hashID, HashID.computeHashID(node));
-                sortedMap.putIfAbsent(nodeDistance, new ArrayList<>());
-                sortedMap.get(nodeDistance).add(node);
+                if (!node.contains("NN:NN")) { // Filter out nodes that don`t have address
+                    int nodeDistance = HashID.distance(hashID, HashID.computeHashID(node));
+                    sortedMap.putIfAbsent(nodeDistance, new ArrayList<>());
+                    sortedMap.get(nodeDistance).add(node);
+                }
             }
         }
 
-        // Iterate over sorted distances to find the three nearest nodes
-        int count = 0;
+        // Iterate over sorted distances to find the nearest nodes
         for (Map.Entry<Integer, List<String>> entry : sortedMap.entrySet()) {
             for (String node : entry.getValue()) {
-                nearestNodes.put(node, entry.getKey());
-                count++;
-                if (count == 3) {
+                if (nearestNodes.size() < 3) {
+                    nearestNodes.put(node, entry.getKey());
+                } else {
                     return nearestNodes;
                 }
             }
