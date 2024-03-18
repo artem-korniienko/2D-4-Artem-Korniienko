@@ -242,7 +242,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     private void handleRequest(BufferedReader reader, Writer writer) throws Exception {
         String response;
         while ((response = reader.readLine()) != null) {
-            if (response.startsWith("ECHO?")) {
+            if (response.equals("ECHO?")) {
                 System.out.println("Received ECHO? request");
                 writer.write(sendOhceMessage() + "\n");
                 writer.flush();
@@ -263,7 +263,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                     writer.write(sendEndMessage("Incorrect NEAREST? request use"));
                     writer.flush();
                 }
-            } else if (response.contains("NOTIFY?")){
+            } else if (response.equals("NOTIFY?")){
 
                 boolean contains = false;
                 StringBuilder nameBuilder = new StringBuilder();
@@ -344,7 +344,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
                 }
                 else {
-                    throw new Exception("Incorrect GET? format");
+                    writer.write(sendEndMessage("Incorrect GET? request use"));
+                    writer.flush();
                 }
             }
 
@@ -388,7 +389,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 } else {
                     System.out.println("Invalid PUT request format");
                     // Respond with an error message
-                    writer.write("ERROR: Invalid PUT request format\n");
+                    writer.write("Invalid PUT request format\n");
                     writer.flush();
                 }
             } else if (response.contains("END")) {
