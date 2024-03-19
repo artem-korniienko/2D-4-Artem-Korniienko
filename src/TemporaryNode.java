@@ -13,6 +13,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.Random;
 
 // DO NOT EDIT starts
 interface TemporaryNodeInterface {
@@ -23,7 +24,7 @@ interface TemporaryNodeInterface {
 // DO NOT EDIT ends
 
 
-public class TemporaryNode implements TemporaryNodeInterface {
+public class TemporaryNode extends MessageSender implements TemporaryNodeInterface {
     public StartingNode startingNode;
     public String nodeName;
     public byte[] hashID;
@@ -31,79 +32,117 @@ public class TemporaryNode implements TemporaryNodeInterface {
     public final String emailAddress = "artem.korniienko@city.ac.uk";
     private static int counter = 0; // For naming purposes
 
-    public boolean start(String startingNodeName, String startingNodeAddress) {
+    BufferedReader reader;
+    Writer writer;
+    Socket socket;
 
-        // Create name for current node
-        nodeName = nameGenerator("");
-        // Handling exceptions for absence of newline characters
+    TemporaryNode() {
+        Random ran = new Random();
+        counter = ran.nextInt(129048);
+        this.nodeName = nameGenerator("-");
+        super.nodeName = this.nodeName;
+    }
+
+    public boolean start(String startingNodeName, String startingNodeAddress) {
         try {
             hashID = HashID.computeHashID(startingNodeName);
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
 
         // Setup fields with information about starting node
-        if (Validator.isValidName(startingNodeName)) //Check weather input name is correct
-            startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n"); // everything that is hashed should end with newline character)
+        if (Validator.isValidName(startingNodeName))
+            startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");
         else
             throw new RuntimeException("Incorrect name");
 
-        // Handling exceptions for absence of newline characters
         try {
             startingNode.setStartingNodeHashID(HashID.computeHashID(startingNodeName));
         } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
 
-        // Setup of ip address and port number of starting node
         if (Validator.isValidAddress(startingNodeAddress)) {
             startingNode.setStartingNodeIpAddress(startingNodeAddress.split(":")[0]);
             startingNode.setStartingNodePortNumber(Integer.parseInt(startingNodeAddress.split(":")[1]));
         }
 
         try {
+            socket = new Socket(startingNode.getStartingNodeIpAddress(), startingNode.getStartingNodePortNumber());
 
-            InetAddress host = InetAddress.getByName(startingNode.getStartingNodeIpAddress());
+            reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            writer = new OutputStreamWriter(socket.getOutputStream());
 
-            int port = startingNode.getStartingNodePortNumber();
-
-            System.out.println("TCPClient connecting to " + host.toString() + ":" + port);
-            Socket clientSocket = new Socket(host, port);
-
-            BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            Writer writer = new OutputStreamWriter(clientSocket.getOutputStream());
-
-            System.out.println("Sending a message to the server");
-            writer.write("Hello Server!\n");
+            writer.write(sendStartMessage() + "\n");
             writer.flush();
 
             String response = reader.readLine();
-            System.out.println("The server said : " + response);
-
-            // Close down the connection
-            clientSocket.close();
+            if (response != null && response.startsWith("START")) {
+                System.out.println("Connection established with previous node");
+            } else {
+                throw new RuntimeException("Failed to connect to previous node");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
         }
-        catch (Exception e){
-
-        }
-	// Implement this!
-	// Return true if the 2D#4 network can be contacted
-	// Return false if the 2D#4 network can't be contacted
-	return true;
+        return true;
     }
 
     public boolean store(String key, String value) {
-	// Implement this!
-	// Return true if the store worked
-	// Return false if the store failed
-	return true;
+        int keyLines = calculateNewLineCharacrter(key);
+        int valueLines = calculateNewLineCharacrter(value);
+        try {
+            writer.write(sendPutMessage(keyLines, valueLines));
+            writer.write(key);
+            writer.write(value);
+            writer.flush();
+            String response = reader.readLine();
+            if (response.contains("SUCCESS")) {
+                System.out.println("Data stored successfully");
+            } else {
+                System.out.println("Failed to store data");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
     }
 
     public String get(String key) {
-	// Implement this!
-	// Return the string if the get worked
-	// Return null if it didn't
-	return "Not implemented";
+        int keyLines = calculateNewLineCharacrter(key);
+        String response = "";
+        try {
+            writer.write(sendGetMessage(keyLines));
+            writer.write(key);
+            writer.flush();
+            response = reader.readLine();
+            if (!response.equals(sendNopeMessage())) {
+                String[] responseArray = response.split(" ");
+                response = "";
+                for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
+                    response += reader.readLine() + "\n";
+                }
+            } else {
+                System.out.println("Failed to retrieve data");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return response;
+    }
+
+    private int calculateNewLineCharacrter(String string) {
+        int newLineCharacterCounter = 0;
+        char[] stringArray = string.toCharArray();
+        for (int i = 0; i < string.length(); i++) {
+            if (stringArray[i] == '\n')
+                newLineCharacterCounter++;
+        }
+        return newLineCharacterCounter;
     }
 
     public String nameGenerator(String nodeInfo) {

@@ -29,6 +29,8 @@ public abstract class MessageSender {
     String sendFailedMessage() {return "FAILED\n"; }
     String sendNopeMessage() {return "NOPE\n"; }
     String sendNotifiedMessage() {return "NOTIFIED\n"; }
+    String sendPutMessage(int keyLines, int valueLines) { return "PUT? " + keyLines + " " + valueLines; }
+    String sendGetMessage(int keyLines) {return "GET? " + keyLines + "\n"; }
     String sendNotifyMessage (String name, String address) {return "NOTIFY?\n" + name + address + "\n"; }
     String sendValueMessage(int amountOfLines, String value) {return "VALUE " + amountOfLines + "\n" + value; }
     String sendNodesMessage(HashMap<String, Integer> nearest) {
@@ -40,5 +42,6 @@ public abstract class MessageSender {
         }
         return returnMessage;
     }
+
 
 }

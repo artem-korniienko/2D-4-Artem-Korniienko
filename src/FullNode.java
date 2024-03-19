@@ -73,6 +73,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // Create name for current node
 
         // TODO: Temperary node implementaion
+        // TODO: Validatae names and inputs?
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
         // TODO: check that we have recieved NOTIFIED Correctly look line number 146
         // TODO: ensure that I delete nodes from map ones they are disconnected
