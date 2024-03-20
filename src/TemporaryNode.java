@@ -13,6 +13,7 @@ import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.util.ArrayList;
 import java.util.Random;
 
 // DO NOT EDIT starts
@@ -91,6 +92,41 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         return true;
     }
 
+    public String findClosestNode(String hashID)
+    {
+        int difference = Integer.MAX_VALUE;
+        String closestNode = "";
+
+        try {
+            writer.write(sendNearestMessage(hashID));
+            writer.flush();
+            String response = reader.readLine();
+            String[] responseArray = response.split(" ");
+
+            ArrayList<String> nodes = new ArrayList<>();
+
+            for (int i = 0; i < Integer.parseInt(responseArray[1]) * 2; i++) {
+                String currentNode = reader.readLine();
+                nodes.add(currentNode);
+            }
+
+            for (String currentNode : nodes) {
+                String[] nodeInfo = currentNode.split(":");
+                String nodeName = nodeInfo[0];
+                String ipAddress = nodeInfo[1];
+
+                int currentDifference = HashID.distance(this.nodeName, nodeName);
+                if (currentDifference < difference) {
+                    difference = currentDifference;
+                    closestNode = nodeName + " " + ipAddress;
+                }
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return closestNode;
+    }
+
     public boolean store(String key, String value) {
         int keyLines = calculateNewLineCharacrter(key);
         int valueLines = calculateNewLineCharacrter(value);
@@ -120,7 +156,7 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer.write(key);
             writer.flush();
             response = reader.readLine();
-            if (!response.equals(sendNopeMessage())) {
+            if (!response.contains("NOPE")) {
                 String[] responseArray = response.split(" ");
                 response = "";
                 for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {

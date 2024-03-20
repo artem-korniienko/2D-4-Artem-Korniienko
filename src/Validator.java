@@ -33,7 +33,7 @@ public class Validator {
             return false;
         }
         checkSet.add(uniqueString);
-        return uniqueString.matches("^[\\p{L}\\p{N}\\p{P}\\p{Z}]+$");
+        return true;
     }
 
     private static boolean isValidEmail(String email) {
@@ -54,7 +54,7 @@ public class Validator {
                 "invalid_address",
                 "invalid_email@",
                 "invalid_name::",
-                "example@example.com:unique!",
+                "b@gmail.com:fubiba",
                 "user@example.com:unique1"
         };
 

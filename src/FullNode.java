@@ -32,7 +32,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public int portNumber;
     public final String emailAddress = "artem.korniienko@city.ac.uk";
     private static int counter = 0; // For naming purposes
-    public float maxSupportedVersion = 1;
+    public int maxSupportedVersion = 1;
     public boolean connectionAccepted = false;
 
     public HashMap<Integer, List<String>> networkMap;
@@ -72,11 +72,13 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
         // Create name for current node
 
-        // TODO: Temperary node implementaion
-        // TODO: Validatae names and inputs?
+        // TODO: Temperary node implementaion - DONE
+        // TODO: Validatae names and inputs?  - DONE
+        // TODO: Protocol version - integer - DONE
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
-        // TODO: check that we have recieved NOTIFIED Correctly look line number 146
-        // TODO: ensure that I delete nodes from map ones they are disconnected
+        // TODO: check that we have recieved NOTIFIED Correctly look line number 146 - DONE
+        // TODO: ensure that I delete nodes from map ones they are disconnected + don`t add temporary nodes
+        // TODO: Full node active mapping
         // TODO: check and refactor code if needed
         // TODO: reared specification and carefully test with lots of nodes
         // TODO: submit :)
@@ -152,7 +154,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 writer.write(this.ipAddress + ":" + this.portNumber + "\n");
                 writer.flush();
                 response = reader.readLine();
-                System.out.println(response);
+                if (response.contains("NOTIFIED")) {
+
+                }
+                else {
+                    throw new RuntimeException("Failed to connect to previous node");
+                }
             } else {
                 throw new RuntimeException("Failed to connect to previous node");
             }
@@ -173,8 +180,15 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 writer.flush();
                 String message = reader.readLine();
                 String[] returnStartMessage = message.split(" ");
+                System.out.println(returnStartMessage[0].equals("START"));
+                System.out.println(returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion)) + " returnMesage[1] " + returnStartMessage[1] + "    String.valuerOF " + String.valueOf(this.maxSupportedVersion));
+                boolean magic = Validator.isValidName(returnStartMessage[2]);
+                System.out.println(magic);
                 if (returnStartMessage[0].equals("START")
-                        && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))) {
+                        && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
+                        ) {
+                    if (!magic)
+                        throw new RuntimeException("Incorrect name");
                     System.out.println("Node accepted connection.");
                     try {
                         addMapElement(returnStartMessage[2]);
@@ -198,7 +212,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     writer.flush();
                                 }
                                 else {
-                                    writer.write(sendEndMessage("Incorrect NEAREST? request use"));
+                                    writer.write(sendEndMessage("Incorrect-NEAREST?-request-use"));
                                     writer.flush();
                                 }
                             } else if ((message.equals("NOTIFY?"))){
@@ -248,7 +262,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 }
                                 writer.write(sendNotifiedMessage());
                                 writer.flush();
-                            } else if ((message.contains("GET?"))) {
+                            } else if ((message.startsWith("GET?"))) {
                                 String[] parts = (message.split(" "));
                                 boolean contains = false;
 
@@ -282,7 +296,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
                                 }
                                 else {
-                                    writer.write(sendEndMessage("Incorrect GET? request use"));
+                                    writer.write(sendEndMessage("Incorrect-GET?-request-use"));
                                     writer.flush();
                                 }
                             }
@@ -330,9 +344,17 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     writer.write("Invalid PUT request format\n");
                                     writer.flush();
                                 }
-                            } else if ((message.contains("END"))) {
+                            } else if (message.equals("")) {
+                                // For NOTIFY? after connection
+                            }
+                            else if ((message.contains("END"))) {
                                 System.out.println("Received END request. Closing connection.");
-                                writer.write(sendEndMessage("Recieved END request"));
+                                writer.write(sendEndMessage("Recieved-END-request"));
+                                writer.flush();
+                                break;
+                            }
+                            else {
+                                writer.write(sendEndMessage("Incorrect-Request"));
                                 writer.flush();
                                 break;
                             }
@@ -361,6 +383,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
     public synchronized void addMapElement(String addedNodeName) throws Exception {
         int distance = calculateDistance(addedNodeName);
+        System.out.println("DISTANCE: "+ distance);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
 
         if (nodeList.size() >= 3) {

@@ -7,11 +7,11 @@ public abstract class MessageSender {
     public String ipAddress = null;
     public int portNumber = 0;
     public final String emailAddress = "artem.korniienko@city.ac.uk";
-    public String maxSupportedVersion = "1.0";
+    public int maxSupportedVersion = 1;
 
     String sendStartMessage()
     {
-        return "START " + Float.parseFloat(maxSupportedVersion) + " " + nodeName;
+        return "START " + maxSupportedVersion + " " + nodeName;
     }
     String sendEndMessage(String reason)
     {
@@ -29,16 +29,18 @@ public abstract class MessageSender {
     String sendFailedMessage() {return "FAILED\n"; }
     String sendNopeMessage() {return "NOPE\n"; }
     String sendNotifiedMessage() {return "NOTIFIED\n"; }
-    String sendPutMessage(int keyLines, int valueLines) { return "PUT? " + keyLines + " " + valueLines; }
+    String sendNearestMessage(String hashID) {return "NEAREST? " + hashID; }
+    String sendPutMessage(int keyLines, int valueLines) { return "PUT? " + keyLines + " " + valueLines + "\n"; }
     String sendGetMessage(int keyLines) {return "GET? " + keyLines + "\n"; }
     String sendNotifyMessage (String name, String address) {return "NOTIFY?\n" + name + address + "\n"; }
     String sendValueMessage(int amountOfLines, String value) {return "VALUE " + amountOfLines + "\n" + value; }
     String sendNodesMessage(HashMap<String, Integer> nearest) {
         String returnMessage = "NODES " + nearest.size() + "\n";
-        for (Map.Entry<String, Integer> entry : nearest.entrySet())
-        {
-            returnMessage += entry.getKey();
-            returnMessage += "\n";
+        for (Map.Entry<String, Integer> entry : nearest.entrySet()) {
+            String nameAddress = entry.getKey();
+            nameAddress = nameAddress.replace("\n", "");
+            String[] nameAdrressArray = nameAddress.split(" ");
+            returnMessage += nameAdrressArray[0] + "\n" + nameAdrressArray[1] + "\n";
         }
         return returnMessage;
     }

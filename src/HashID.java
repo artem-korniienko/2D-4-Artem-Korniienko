@@ -60,7 +60,10 @@ public class HashID {
 		}
 		return binaryString.toString();
 	}
-
+	public static int distance(String name1, String name2) throws Exception
+	{
+		return distance(HashID.computeHashID(name1), HashID.computeHashID(name2));
+	}
 	public static int distance(byte[] hashID1, byte[] hashID2)
 	{
 		int distance = 256;
@@ -68,7 +71,7 @@ public class HashID {
 
 		String hashIDS1 = hexToBinary(bytesToHex(hashID1));
 		String hashIDS2 = hexToBinary(bytesToHex(hashID2));
-
+		                                                                                                                                   // 0101011011000000100000101100011011110011001111010110111001100100111101110110101110001100100000001111001110011011101010101001101001110011010101111100111010110001010100100100111100101010111110011011011010101111101110110001000000000110100111101010001110000110
 		while (hashIDS1.charAt(similarBits) == hashIDS2.charAt(similarBits))
 		{
 			similarBits++;
@@ -97,5 +100,6 @@ public class HashID {
 
 			String hexString = bytesToHex(computeHashID((input + "\n")));
 			System.out.println("Hexadecimal representation: " + hexString);
+			System.out.println("Binary representation: " + hexToBinary(hexString));
 		}
 	}}
