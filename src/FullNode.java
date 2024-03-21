@@ -40,6 +40,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
     Socket socket;
     ServerSocket serverSocket;
+    Set<String> visitedNodes = new HashSet<>();
+
 
 
     public FullNode() {
@@ -115,14 +117,20 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         try {
             while (true) {
                 System.out.println("Listening for incoming connections...");
-                if (!isStartingNode()) { // If not the starting node, connect to the previous node
+                if (!isStartingNode()) {
                     connectToStartingNode();
+                    try {
+                        addMapElement(startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
+                    }
+                    catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
 
                 try {
-                    Socket clientSocket = serverSocket.accept(); // Accept incoming connections
+                    Socket clientSocket = serverSocket.accept();
                     System.out.println("Client connected!");
-                    handleClientConnection(clientSocket); // Handle each client connection in a separate thread
+                    handleClientConnection(clientSocket);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -155,7 +163,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 writer.flush();
                 response = reader.readLine();
                 if (response.contains("NOTIFIED")) {
-
+                    activeMapping(reader, writer, startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
                 }
                 else {
                     throw new RuntimeException("Failed to connect to previous node");
@@ -164,31 +172,113 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 throw new RuntimeException("Failed to connect to previous node");
             }
 
-            // Close the socket after all tasks are executed
             socket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
     }
 
+    private void activeMapping(BufferedReader reader, Writer writer, String nodeName, String nodeAddress) throws Exception {
+        List<String> nodesToCheck = new ArrayList<>();
+        nodeName = nodeName.replace("\n", "");
+        nodesToCheck.add(nodeName + " " + nodeAddress);
+
+        Set<String> visitedNodes = new HashSet<>(); // Track visited nodes
+
+        while (!nodesToCheck.isEmpty()) {
+            System.out.println("active mapping");
+            List<String> newNodesToCheck = new ArrayList<>();
+
+            for (String node : nodesToCheck) {
+                try {
+
+                    if (node.contains(this.nodeName.replace("\n", "")))
+                        continue;
+
+                    if (!visitedNodes.contains(node.split(" ")[1])) {
+                        List<String> nearestNodes = sendNearestRequest(node);
+
+                        for (String nearestNode : nearestNodes) {
+                            String nearestNodeName = nearestNode.split(" ")[0];
+                            String nearestNodeAddress = nearestNode.split(" ")[1];
+                            addMapElement(nearestNodeName, nearestNodeAddress);
+                            if (!visitedNodes.contains(node.split(" ")[1]))
+                                newNodesToCheck.add(nearestNodeName + " " + nearestNodeAddress);
+                        }
+                        visitedNodes.add(node.split(" ")[1]);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            }
+
+            nodesToCheck.clear();
+            nodesToCheck.addAll(newNodesToCheck);
+        }
+    }
+
+    private List<String> sendNearestRequest(String nodeNameAddress) throws Exception{
+        List<String> nearestNodes = new LinkedList<>();
+        try {
+            String[] nodeNameAddressParts = nodeNameAddress.split(" ");
+            String ipAddress = nodeNameAddressParts[1].split(":")[0];
+            int portNumber = Integer.parseInt(nodeNameAddressParts[1].split(":")[1]);
+
+            Socket socket = new Socket(ipAddress, portNumber);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            Writer writer = new OutputStreamWriter(socket.getOutputStream());
+
+            writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + "\n");
+            writer.flush();
+            reader.readLine();
+
+            writer.write("NEAREST? " + HashID.bytesToHex(HashID.computeHashID(nodeName)) + "\n");
+            writer.flush();
+
+            String response = reader.readLine();
+            if (response != null && response.startsWith("NODES")) {
+                int numberOfNodes = Integer.parseInt(response.split(" ")[1]);
+                for (int i = 0; i < numberOfNodes; i++) {
+                    String nodeNameAddressResponse = reader.readLine().trim();
+                    nodeNameAddressResponse += " " + reader.readLine();
+                    nearestNodes.add(nodeNameAddressResponse);
+                }
+            }
+
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return nearestNodes;
+    }
+
     private void handleClientConnection(Socket clientSocket) throws Exception {
         Thread thread = new Thread(() -> {
             try {
+
+                String clientAddress = "NN:NN";
+
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
+
                 Writer writer = new OutputStreamWriter(clientSocket.getOutputStream());
                 writer.write(sendStartMessage());
                 writer.flush();
+
                 String message = reader.readLine();
                 String[] returnStartMessage = message.split(" ");
+
                 System.out.println(returnStartMessage[0].equals("START"));
                 System.out.println(returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion)) + " returnMesage[1] " + returnStartMessage[1] + "    String.valuerOF " + String.valueOf(this.maxSupportedVersion));
                 boolean magic = Validator.isValidName(returnStartMessage[2]);
                 System.out.println(magic);
+
+
                 if (returnStartMessage[0].equals("START")
                         && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
                         ) {
-                    if (!magic)
-                        throw new RuntimeException("Incorrect name");
+//                    if (!magic)
+//                        throw new RuntimeException("Incorrect name");
                     System.out.println("Node accepted connection.");
                     try {
                         addMapElement(returnStartMessage[2]);
@@ -260,6 +350,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                         }
                                     }
                                 }
+                                clientAddress = addressBuilder.toString();
+                               //activeMapping(reader, writer, returnStartMessage[2], clientAddress);
                                 writer.write(sendNotifiedMessage());
                                 writer.flush();
                             } else if ((message.startsWith("GET?"))) {
@@ -368,6 +460,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 } else {
                     throw new RuntimeException("Incorrect communication initialization.");
                 }
+
             } catch (IOException | RuntimeException e) {
                 e.printStackTrace();
             } finally {
@@ -377,6 +470,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                     e.printStackTrace();
                 }
             }
+            // Every 5 seconds active mapping request
         });
         thread.start();
     }
@@ -478,173 +572,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         try (Writer writer = new OutputStreamWriter(socket.getOutputStream())) {
             writer.write("PUT? 1 1");
             writer.flush();
-        }
-    }
-    private void handleRequest(BufferedReader reader, Writer writer) throws Exception {
-        String response;
-        while ((response = reader.readLine()) != null) {
-            System.out.println(response);
-            if (response.equals("ECHO?")) {
-                System.out.println("Received ECHO? request");
-                writer.write(sendOhceMessage() + "\n");
-                writer.flush();
-            } else if (response.equals("OHCE")) {
-                System.out.println("Received OHCE");
-            } else if (response.equals("SHOWMAP?"))
-            {
-                writer.write(getNetworkMap());
-                writer.flush();
-            } else if (response.startsWith("NEAREST?")) {
-                String[] parts = response.split(" ");
-                if (parts.length == 2) {
-                    HashMap<String, Integer> nearest = findThreeNearestNodes(parts[1]);
-                    writer.write(sendNodesMessage(nearest));
-                    writer.flush();
-                }
-                else {
-                    writer.write(sendEndMessage("Incorrect NEAREST? request use"));
-                    writer.flush();
-                }
-            } else if (response.equals("NOTIFY?")){
-
-                boolean contains = false;
-                StringBuilder nameBuilder = new StringBuilder();
-                StringBuilder addressBuilder = new StringBuilder();
-                StringBuilder newAddress = new StringBuilder();
-                for (int i = 0; i < 1; i++) {
-                    nameBuilder.append(reader.readLine());
-                }
-                for (int i = 0; i < 1; i++) {
-                    addressBuilder.append(reader.readLine());
-                }
-
-                for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
-                    List<String> nodeList = entry.getValue();
-                    for (int i = 0; i < nodeList.size(); i++) {
-                        String nameAddress = nodeList.get(i);
-                        if (nameAddress.contains(nameBuilder.toString())) {
-                            String[] addressArray = nameAddress.split(" ");
-                            addressArray[1] = addressBuilder.toString().trim();
-                            newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
-                            nodeList.set(i, newAddress.toString());
-                            contains = true;
-                            break;
-                        }
-                    }
-                }
-                if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
-                {
-                    addMapElement(nameBuilder.toString());
-                    for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
-                        List<String> nodeList = entry.getValue();
-                        for (int i = 0; i < nodeList.size(); i++) {
-                            String nameAddress = nodeList.get(i);
-                            if (nameAddress.contains(nameBuilder.toString())) {
-                                String[] addressArray = nameAddress.split(" ");
-                                addressArray[1] = addressBuilder.toString().trim();
-                                newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
-                                nodeList.set(i, newAddress.toString());
-                                contains = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-                writer.write(sendNotifiedMessage());
-                writer.flush();
-            } else if (response.contains("GET?")) {
-                String[] parts = response.split(" ");
-                boolean contains = false;
-
-                if (parts.length == 2) {
-                    int keyLines = Integer.parseInt(parts[1]);
-
-                    StringBuilder keyBuilder = new StringBuilder();
-                    for (int i = 0; i < keyLines; i++) {
-                        keyBuilder.append(reader.readLine()).append("\n");
-                    }
-
-                    byte[] requestHASHID = HashID.computeHashID(keyBuilder.toString());
-
-                    String value = "";
-
-                    for (Map.Entry<String, String> entry : map.entrySet())
-                    {
-                        if (entry.getKey().equals(HashID.bytesToHex(requestHASHID))) {
-                            contains = true;
-                            value = entry.getValue();
-                        }
-                    }
-                    if (contains) {
-                        writer.write(sendValueMessage(calculateNewLineCharacrter(value), value));
-                        writer.flush();
-                    }
-                    else {
-                        writer.write(sendNopeMessage());
-                        writer.flush();
-                    }
-
-                }
-                else {
-                    writer.write(sendEndMessage("Incorrect GET? request use"));
-                    writer.flush();
-                }
-            }
-
-            else if (response.startsWith("PUT?")) {
-                String[] parts = response.split(" ");
-                boolean shouldContain = false;
-                if (parts.length == 3) {
-                    int keyLines = Integer.parseInt(parts[1]);
-                    int valueLines = Integer.parseInt(parts[2]);
-
-                    StringBuilder keyBuilder = new StringBuilder();
-                    StringBuilder valueBuilder = new StringBuilder();
-                    for (int i = 0; i < keyLines; i++) {
-                        keyBuilder.append(reader.readLine()).append("\n");
-                    }
-                    for (int i = 0; i < valueLines; i++) {
-                        valueBuilder.append(reader.readLine()).append("\n");
-                    }
-                    byte[] requestHASHID = HashID.computeHashID(keyBuilder.toString());
-                    HashMap<String, Integer> threeNearestNodes = findThreeNearestNodes(requestHASHID);
-                    for (Map.Entry<String, Integer> entry : threeNearestNodes.entrySet())
-                    {
-                        if (entry.getKey().contains(nodeName))
-                            shouldContain = true;
-                    }
-                    if (shouldContain)
-                    {
-                        map.put(HashID.bytesToHex(requestHASHID), valueBuilder.toString());
-                        writer.write(sendSuccessMessage());
-                        writer.flush();
-                        for (Map.Entry<String, String> entry : map.entrySet())
-                        {
-                            System.out.println(entry.getKey() + ":" + entry.getValue());
-                        }
-                    }
-                    else
-                    {
-                        writer.write(sendFailedMessage());
-                        writer.flush();
-                    }
-                } else {
-                    System.out.println("Invalid PUT request format");
-                    // Respond with an error message
-                    writer.write("Invalid PUT request format\n");
-                    writer.flush();
-                }
-            } else if (response.contains("END")) {
-                System.out.println("Received END request. Closing connection.");
-                writer.write(sendEndMessage("Recieved END request"));
-                writer.flush();
-                break;
-            }
-            else {
-                writer.write(sendEndMessage("Incorrect Command"));
-                writer.flush();
-                break;
-            }
         }
     }
     private int calculateNewLineCharacrter(String string)
