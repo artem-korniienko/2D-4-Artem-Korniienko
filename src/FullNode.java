@@ -351,7 +351,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     }
                                 }
                                 clientAddress = addressBuilder.toString();
-                               //activeMapping(reader, writer, returnStartMessage[2], clientAddress);
+                                //activeMapping(reader, writer, returnStartMessage[2], clientAddress);
                                 writer.write(sendNotifiedMessage());
                                 writer.flush();
                             } else if ((message.startsWith("GET?"))) {
