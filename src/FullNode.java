@@ -80,7 +80,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
         // TODO: check that we have recieved NOTIFIED Correctly look line number 146 - DONE
         // TODO: ensure that I delete nodes from map ones they are disconnected + don`t add temporary nodes
-        // TODO: Full node active mapping
+        // TODO: Full node active mapping - Almost done? there is a bug connected to it that needs to be fixed
         // TODO: check and refactor code if needed
         // TODO: reared specification and carefully test with lots of nodes
         // TODO: submit :)
@@ -185,7 +185,9 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
         Set<String> visitedNodes = new HashSet<>(); // Track visited nodes
 
-        while (!nodesToCheck.isEmpty()) {
+        int i = 0;
+
+        while (!nodesToCheck.isEmpty() && i < 1000000000) {
             System.out.println("active mapping");
             List<String> newNodesToCheck = new ArrayList<>();
 
@@ -214,6 +216,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
             nodesToCheck.clear();
             nodesToCheck.addAll(newNodesToCheck);
+
+            i++;
         }
     }
 
@@ -448,6 +452,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                             else {
                                 writer.write(sendEndMessage("Incorrect-Request"));
                                 writer.flush();
+                                if (!clientAddress.equals("NN:NN"))
+                                    deleteMapElement(clientAddress);
                                 break;
                             }
 
@@ -473,6 +479,18 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             // Every 5 seconds active mapping request
         });
         thread.start();
+    }
+
+    public synchronized void deleteMapElement(String nodeAddress) {
+        for (List<String> nodeList : networkMap.values()) {
+            Iterator<String> iterator = nodeList.iterator();
+            while (iterator.hasNext()) {
+                String nodeWithAddress = iterator.next();
+                if (nodeWithAddress.endsWith(nodeAddress)) {
+                    iterator.remove();
+                }
+            }
+        }
     }
 
     public synchronized void addMapElement(String addedNodeName) throws Exception {
