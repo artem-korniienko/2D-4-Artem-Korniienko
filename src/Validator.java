@@ -53,8 +53,8 @@ public class Validator {
                 "john.doe@example.com:unique1!!...",
                 "invalid_address",
                 "invalid_email@",
-                "invalid_name::",
-                "b@gmail.com:fubiba",
+                "artem@gmail.com:adsf",
+                "artem.korniienko@city.ac.uk:dummyNodeForActiveMapping",
                 "user@example.com:unique1"
         };
 

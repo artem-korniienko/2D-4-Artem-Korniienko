@@ -159,9 +159,10 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             if (!response.contains("NOPE")) {
                 String[] responseArray = response.split(" ");
                 response = "";
-                for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
-                    response += reader.readLine() + "\n";
-                }
+                System.out.println(responseArray[1]);
+//                for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
+//                    response += reader.readLine() + "\n";
+//                }
             } else {
                 System.out.println("Failed to retrieve data");
             }

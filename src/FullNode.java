@@ -196,7 +196,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         nodeName = nodeName.replace("\n", "");
         nodesToCheck.add(nodeName + " " + nodeAddress);
 
-        Set<String> visitedNodes = new HashSet<>(); // Track visited nodes
+        Set<String> visitedNodes = new HashSet<>();
 
         int i = 0;
 
@@ -250,7 +250,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
-            writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + "\n");
+            Random ran = new Random();
+            writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + ran.nextInt(321541) + "\n");
             writer.flush();
             reader.readLine();
 
@@ -292,11 +293,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 System.out.println(returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion)) + " returnMesage[1] " + returnStartMessage[1] + "    String.valuerOF " + String.valueOf(this.maxSupportedVersion));
                 boolean magic = Validator.isValidName(returnStartMessage[2]);
                 System.out.println(magic);
+                System.out.println(returnStartMessage[2]);
 
 
                 if (returnStartMessage[0].equals("START")
                         && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
-                        ) {
+                        && magic) {
                     System.out.println("Node accepted connection.");
                     try {
                         addMapElement(returnStartMessage[2]);
@@ -322,6 +324,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 else {
                                     writer.write(sendEndMessage("Incorrect-NEAREST?-request-use"));
                                     writer.flush();
+                                    if (!clientAddress.equals("NN:NN"))
+                                        deleteMapElement(clientAddress);
                                 }
                             } else if ((message.equals("NOTIFY?"))){
 
@@ -418,6 +422,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 else {
                                     writer.write(sendEndMessage("Incorrect-GET?-request-use"));
                                     writer.flush();
+                                    if (!clientAddress.equals("NN:NN"))
+                                        deleteMapElement(clientAddress);
                                 }
                             }
 
@@ -463,6 +469,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     // Respond with an error message
                                     writer.write("Invalid PUT request format\n");
                                     writer.flush();
+                                    if (!clientAddress.equals("NN:NN"))
+                                        deleteMapElement(clientAddress);
                                 }
                             } else if (message.equals("")) {
                                 // For NOTIFY? after connection
@@ -471,6 +479,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 System.out.println("Received END request. Closing connection.");
                                 writer.write(sendEndMessage("Recieved-END-request"));
                                 writer.flush();
+                                if (!clientAddress.equals("NN:NN"))
+                                    deleteMapElement(clientAddress);
                                 break;
                             }
                             else {
@@ -500,7 +510,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                     e.printStackTrace();
                 }
             }
-            // Every 5 seconds active mapping request
         });
         thread.start();
     }
