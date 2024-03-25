@@ -35,6 +35,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public int maxSupportedVersion = 1;
     public boolean connectionAccepted = false;
 
+    private String currentClientName = "NN:NN";
     public HashMap<Integer, List<String>> networkMap;
     public HashMap<String, String> map = new HashMap<>();
 
@@ -79,7 +80,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // TODO: Protocol version - integer - DONE
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
         // TODO: check that we have recieved NOTIFIED Correctly look line number 146 - DONE
-        // TODO: ensure that I delete nodes from map ones they are disconnected + don`t add temporary nodes
+        // TODO: ensure i delete everything if incorrect format
         // TODO: Full node active mapping - Almost done? there is a bug connected to it that needs to be fixed
         // TODO: check and refactor code if needed
         // TODO: reared specification and carefully test with lots of nodes
@@ -115,10 +116,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         }
 
         try {
+            int startingNodeCounter = 0;
             while (true) {
                 System.out.println("Listening for incoming connections...");
                 if (!isStartingNode()) {
-                    connectToStartingNode();
+                    if (startingNodeCounter < 1)
+                        connectToStartingNode();
                     try {
                         addMapElement(startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
                     }
@@ -134,6 +137,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
+                startingNodeCounter++;
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -164,10 +168,19 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 response = reader.readLine();
                 if (response.contains("NOTIFIED")) {
                     activeMapping(reader, writer, startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
+                    ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                    executor.scheduleAtFixedRate(() -> {
+                        try {
+                            activeMapping(reader, writer, startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }, 0, 5, TimeUnit.SECONDS);
                 }
                 else {
                     throw new RuntimeException("Failed to connect to previous node");
                 }
+
             } else {
                 throw new RuntimeException("Failed to connect to previous node");
             }
@@ -187,38 +200,42 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
         int i = 0;
 
-        while (!nodesToCheck.isEmpty() && i < 1000000000) {
-            System.out.println("active mapping");
+        while (!nodesToCheck.isEmpty() && i < 1000) {
+            System.out.println("active mapping start");
             List<String> newNodesToCheck = new ArrayList<>();
 
-            for (String node : nodesToCheck) {
+            Iterator<String> iterator = nodesToCheck.iterator();
+            while (iterator.hasNext()) {
+                String node = iterator.next();
                 try {
-
                     if (node.contains(this.nodeName.replace("\n", "")))
                         continue;
 
                     if (!visitedNodes.contains(node.split(" ")[1])) {
                         List<String> nearestNodes = sendNearestRequest(node);
+                        iterator.remove();
 
                         for (String nearestNode : nearestNodes) {
                             String nearestNodeName = nearestNode.split(" ")[0];
                             String nearestNodeAddress = nearestNode.split(" ")[1];
                             addMapElement(nearestNodeName, nearestNodeAddress);
-                            if (!visitedNodes.contains(node.split(" ")[1]))
+                            if (!visitedNodes.contains(nearestNode.split(" ")[1]))
                                 newNodesToCheck.add(nearestNodeName + " " + nearestNodeAddress);
                         }
                         visitedNodes.add(node.split(" ")[1]);
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
+                    break;
                 }
             }
 
-            nodesToCheck.clear();
             nodesToCheck.addAll(newNodesToCheck);
 
             i++;
+            System.out.println("active mapping end");
         }
+        System.out.println("FINISHED ACTIVE MAPPING");
     }
 
     private List<String> sendNearestRequest(String nodeNameAddress) throws Exception{
@@ -260,7 +277,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     private void handleClientConnection(Socket clientSocket) throws Exception {
         Thread thread = new Thread(() -> {
             try {
-
                 String clientAddress = "NN:NN";
 
                 BufferedReader reader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
@@ -281,8 +297,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 if (returnStartMessage[0].equals("START")
                         && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
                         ) {
-//                    if (!magic)
-//                        throw new RuntimeException("Incorrect name");
                     System.out.println("Node accepted connection.");
                     try {
                         addMapElement(returnStartMessage[2]);
@@ -355,9 +369,19 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     }
                                 }
                                 clientAddress = addressBuilder.toString();
-                                //activeMapping(reader, writer, returnStartMessage[2], clientAddress);
+                                setSynchronizedClientName(clientAddress);
                                 writer.write(sendNotifiedMessage());
                                 writer.flush();
+                                activeMapping(reader, writer, returnStartMessage[2], clientAddress);
+                                ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+                                executor.scheduleAtFixedRate(() -> {
+                                    try {
+                                        activeMapping(reader, writer, returnStartMessage[2], getSynchronizedClientName());
+                                    } catch (Exception e) {
+                                        e.printStackTrace();
+                                    }
+                                }, 0, 5, TimeUnit.SECONDS);
+
                             } else if ((message.startsWith("GET?"))) {
                                 String[] parts = (message.split(" "));
                                 boolean contains = false;
@@ -670,5 +694,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     }
     public String nameGenerator(String nodeInfo) {
         return emailAddress + ":" + "my-implementation,test-full-node" + nodeInfo + FullNode.getCounter() + "\n";
+    }
+    public synchronized void setSynchronizedClientName(String value) {
+        this.currentClientName= value;
+    }
+
+    public synchronized String getSynchronizedClientName() {
+        return currentClientName;
     }
 }
