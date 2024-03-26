@@ -76,7 +76,7 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new OutputStreamWriter(socket.getOutputStream());
 
-            writer.write(sendStartMessage() + "\n");
+            writer.write(sendStartMessage());
             writer.flush();
 
             String response = reader.readLine();
@@ -136,6 +136,7 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer.write(value);
             writer.flush();
             String response = reader.readLine();
+            System.out.println("Martin said this: " + response);
             if (response.contains("SUCCESS")) {
                 System.out.println("Data stored successfully");
             } else {
@@ -152,17 +153,21 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         int keyLines = calculateNewLineCharacrter(key);
         String response = "";
         try {
+            //writer.write("GET? 1\n");
+            //writer.write("io\n");
+            //writer.flush(); correct format of the messages i need to reread spec shit and adjust everthing
             writer.write(sendGetMessage(keyLines));
             writer.write(key);
             writer.flush();
             response = reader.readLine();
-            if (!response.contains("NOPE")) {
+            System.out.println("Martin said this: " + response);
+            if (!response.contains("NOPE") && !response.contains("END")) {
                 String[] responseArray = response.split(" ");
                 response = "";
                 System.out.println(responseArray[1]);
-//                for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
-//                    response += reader.readLine() + "\n";
-//                }
+                for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
+                    response += reader.readLine() + "\n";
+                }
             } else {
                 System.out.println("Failed to retrieve data");
             }

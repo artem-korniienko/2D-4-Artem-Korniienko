@@ -80,10 +80,11 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // TODO: Protocol version - integer - DONE
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
         // TODO: check that we have recieved NOTIFIED Correctly look line number 146 - DONE
-        // TODO: ensure i delete everything if incorrect format
-        // TODO: Full node active mapping - Almost done? there is a bug connected to it that needs to be fixed
+        // TODO: ensure i delete everything if incorrect format - DONE
+        // TODO: Full node active mapping - DONE
         // TODO: check and refactor code if needed
         // TODO: reared specification and carefully test with lots of nodes
+        // TODO: test on martins network, implements lots of writes.
         // TODO: submit :)
 
 
@@ -104,8 +105,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             startingNode.setStartingNodeIpAddress(startingNodeAddress.split(":")[0]);
             startingNode.setStartingNodePortNumber(Integer.parseInt(startingNodeAddress.split(":")[1]));
         }
-
-
 
         networkMap = new HashMap<>();
 
@@ -356,7 +355,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 }
                                 if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
                                 {
-                                    addMapElement(nameBuilder.toString());
+                                    addMapElement(nameBuilder.toString()); //TODO: add element after we initisalised its address;
                                     for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
                                         List<String> nodeList = entry.getValue();
                                         for (int i = 0; i < nodeList.size(); i++) {
