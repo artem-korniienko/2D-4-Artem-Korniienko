@@ -7,14 +7,10 @@
 // YOUR_EMAIL_GOES_HERE
 
 
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.Writer;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.*;
 
 // DO NOT EDIT starts
 interface TemporaryNodeInterface {
@@ -76,12 +72,11 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             writer = new OutputStreamWriter(socket.getOutputStream());
 
-            writer.write(sendStartMessage());
-            writer.flush();
-
             String response = reader.readLine();
             if (response != null && response.startsWith("START")) {
                 System.out.println("Connection established with previous node");
+                writer.write(sendStartMessage());
+                writer.flush();
             } else {
                 throw new RuntimeException("Failed to connect to previous node");
             }
@@ -92,33 +87,29 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         return true;
     }
 
-    public String findClosestNode(String hashID)
-    {
-        int difference = Integer.MAX_VALUE;
+    public String findClosestNode(String hashID) {
         String closestNode = "";
+        int difference = Integer.MAX_VALUE;
 
         try {
-            writer.write(sendNearestMessage(hashID));
-            writer.flush();
-            String response = reader.readLine();
-            String[] responseArray = response.split(" ");
+            List<String> nearestNodes = sendNearestRequest(hashID);
 
-            ArrayList<String> nodes = new ArrayList<>();
+            Set<String> visitedNodes = new HashSet<>();
 
-            for (int i = 0; i < Integer.parseInt(responseArray[1]) * 2; i++) {
-                String currentNode = reader.readLine();
-                nodes.add(currentNode);
-            }
+            for (String node : nearestNodes) {
+                String nodeName = node.split(" ")[0];
+                String ipAddress = node.split(" ")[1];
 
-            for (String currentNode : nodes) {
-                String[] nodeInfo = currentNode.split(":");
-                String nodeName = nodeInfo[0];
-                String ipAddress = nodeInfo[1];
+                if (!visitedNodes.contains(ipAddress)) {
+                    visitedNodes.add(ipAddress);
 
-                int currentDifference = HashID.distance(this.nodeName, nodeName);
-                if (currentDifference < difference) {
-                    difference = currentDifference;
-                    closestNode = nodeName + " " + ipAddress;
+                    String closestFromNearest = findClosestNodeFromNode(nodeName, ipAddress);
+
+                    int currentDifference = HashID.distance(this.nodeName, closestFromNearest.split(" ")[0]);
+                    if (currentDifference < difference) {
+                        difference = currentDifference;
+                        closestNode = closestFromNearest;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -127,7 +118,89 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         return closestNode;
     }
 
+    private List<String> sendNearestRequest(String hashID) throws Exception {
+        List<String> nearestNodes = new LinkedList<>();
+        try {
+
+            String ipAddress = startingNode.getStartingNodeIpAddress();
+            int portNumber = startingNode.getStartingNodePortNumber();
+
+            Socket socket = new Socket(ipAddress, portNumber);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            Writer writer = new OutputStreamWriter(socket.getOutputStream());
+
+            Random ran = new Random();
+            writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + ran.nextInt(321541) + "\n");
+            writer.flush();
+            reader.readLine();
+
+            writer.write("NEAREST? " + hashID + "\n");
+            writer.flush();
+
+            String response = reader.readLine();
+            if (response != null && response.startsWith("NODES")) {
+                int numberOfNodes = Integer.parseInt(response.split(" ")[1]);
+                for (int i = 0; i < numberOfNodes; i++) {
+                    String nodeNameAddressResponse = reader.readLine().trim();
+                    nodeNameAddressResponse += " " + reader.readLine();
+                    nearestNodes.add(nodeNameAddressResponse);
+                }
+            }
+
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return nearestNodes;
+    }
+
+
+    private String findClosestNodeFromNode(String nodeName, String ipAddress) throws Exception {
+        String closestNode = "";
+        int difference = Integer.MAX_VALUE;
+
+        Socket socket = new Socket(ipAddress.split(":")[0], Integer.parseInt(ipAddress.split(":")[1]));
+        BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        Writer writer = new OutputStreamWriter(socket.getOutputStream());
+
+        Random ran = new Random();
+
+        writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + ran.nextInt(321541) + "\n");
+        writer.flush();
+        reader.readLine();
+
+        writer.write("NEAREST? " + HashID.bytesToHex(HashID.computeHashID(nodeName)) + "\n");
+        writer.flush();
+
+        String response = reader.readLine();
+        if (response != null && response.startsWith("NODES")) {
+            int numberOfNodes = Integer.parseInt(response.split(" ")[1]);
+            for (int i = 0; i < numberOfNodes; i++) {
+                String nodeInfo = reader.readLine().trim();
+                nodeInfo += " " + reader.readLine();
+
+                String[] nodeParts = nodeInfo.split(" ");
+                String currentNodeName = nodeParts[0];
+                String currentIpAddress = nodeParts[1];
+                int currentDifference = HashID.distance(this.nodeName, currentNodeName);
+
+                if (currentDifference < difference) {
+                    difference = currentDifference;
+                    closestNode = currentNodeName + " " + currentIpAddress;
+                }
+            }
+        }
+
+        socket.close();
+        return closestNode;
+    }
+
     public boolean store(String key, String value) {
+        if (!key.endsWith("\n"))
+            key += "\n";
+        if (!value.endsWith("\n"))
+            key += "\n";
         int keyLines = calculateNewLineCharacrter(key);
         int valueLines = calculateNewLineCharacrter(value);
         try {
@@ -136,11 +209,11 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer.write(value);
             writer.flush();
             String response = reader.readLine();
-            System.out.println("Martin said this: " + response);
             if (response.contains("SUCCESS")) {
                 System.out.println("Data stored successfully");
             } else {
                 System.out.println("Failed to store data");
+                return false;
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -150,21 +223,17 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
     }
 
     public String get(String key) {
-        int keyLines = calculateNewLineCharacrter(key);
+        if (!key.endsWith("\n"))
+            key += "\n";
         String response = "";
         try {
-            //writer.write("GET? 1\n");
-            //writer.write("io\n");
-            //writer.flush(); correct format of the messages i need to reread spec shit and adjust everthing
-            writer.write(sendGetMessage(keyLines));
+            writer.write(sendGetMessage(calculateNewLineCharacrter(key)));
             writer.write(key);
             writer.flush();
             response = reader.readLine();
-            System.out.println("Martin said this: " + response);
-            if (!response.contains("NOPE") && !response.contains("END")) {
+            if (!response.contains("NOPE")) {
                 String[] responseArray = response.split(" ");
                 response = "";
-                System.out.println(responseArray[1]);
                 for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
                     response += reader.readLine() + "\n";
                 }

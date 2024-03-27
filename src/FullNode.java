@@ -75,18 +75,22 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
         // Create name for current node
 
-        // TODO: Temperary node implementaion - DONE
-        // TODO: Validatae names and inputs?  - DONE
-        // TODO: Protocol version - integer - DONE
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
-        // TODO: check that we have recieved NOTIFIED Correctly look line number 146 - DONE
-        // TODO: ensure i delete everything if incorrect format - DONE
-        // TODO: Full node active mapping - DONE
+        // TODO: ensure i delete everything if incorrect format
         // TODO: check and refactor code if needed
         // TODO: reared specification and carefully test with lots of nodes
-        // TODO: test on martins network, implements lots of writes.
         // TODO: submit :)
+        // TODO: ensure we are not adding duplicate elements(with the same address at least)
+        // TODO: check so that we are addinh same addresses but different names
 
+
+        //TODO: refine structure
+        //TODO: delete development comments, add explanation comment
+        //TODO: add instruction file
+        //TODO: test against all requierments
+        //TODO: test on martins-network
+        //TODO: record
+        //TODO: submit
 
         // Setup fields with information about starting node
         if (Validator.isValidName(startingNodeName))
@@ -105,6 +109,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             startingNode.setStartingNodeIpAddress(startingNodeAddress.split(":")[0]);
             startingNode.setStartingNodePortNumber(Integer.parseInt(startingNodeAddress.split(":")[1]));
         }
+
+
 
         networkMap = new HashMap<>();
 
@@ -154,12 +160,11 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
-            writer.write(sendStartMessage() + "\n");
-            writer.flush();
-
             String response = reader.readLine();
             if (response != null && response.startsWith("START")) {
                 System.out.println("Connection established with previous node");
+                writer.write(sendStartMessage());
+                writer.flush();
                 writer.write("NOTIFY?\n");
                 writer.write(this.nodeName);
                 writer.write(this.ipAddress + ":" + this.portNumber + "\n");
@@ -355,7 +360,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 }
                                 if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
                                 {
-                                    addMapElement(nameBuilder.toString()); //TODO: add element after we initisalised its address;
+                                    addMapElement(nameBuilder.toString());
                                     for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
                                         List<String> nodeList = entry.getValue();
                                         for (int i = 0; i < nodeList.size(); i++) {
@@ -538,24 +543,35 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         if (addedNodeName.equals(this.nodeName)) {
             nodeWithAddress =  addedNodeName + " " + ipAddress + ":" + portNumber;
         }
-        if (!nodeList.contains(nodeWithAddress)) {
+        if (!nodeList.contains(nodeWithAddress) && !containsSameIP(nodeWithAddress.split(" ")[1])) {
             nodeList.add(nodeWithAddress);
             networkMap.put(distance, nodeList);
         }
+    }
+    public synchronized boolean containsSameIP(String ip)
+    {
+        for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet())
+        {
+            for (String element :entry.getValue())
+            {
+                if (element.contains(ip))
+                    return true;
+            }
+        }
+        return false;
     }
     public synchronized void addMapElement(String addedNodeName, String addedNodeAddress) throws Exception {
         int distance = calculateDistance(addedNodeName);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
 
         if (nodeList.size() >= 3) {
-            // Remove the oldest node
             nodeList.remove(0);
         }
         String nodeWithAddress = addedNodeName + " " + addedNodeAddress;
         if (addedNodeName.equals(this.nodeName)) {
             nodeWithAddress =  addedNodeName + " " + ipAddress + ":" + portNumber;
         }
-        if (!nodeList.contains(nodeWithAddress)) {
+        if (!nodeList.contains(nodeWithAddress) && !containsSameIP(nodeWithAddress.split(" ")[1])) {
             nodeList.add(nodeWithAddress);
             networkMap.put(distance, nodeList);
         }
@@ -670,16 +686,16 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     {
         return findThreeNearestNodes(HashID.hexToBytes(hashID));
     }
-    HashMap<String, Integer> findThreeNearestNodes(byte[] hashID) throws Exception
-    {
+    HashMap<String, Integer> findThreeNearestNodes(byte[] hashID) throws Exception {
         HashMap<String, Integer> nearestNodes = new HashMap<>();
         TreeMap<Integer, List<String>> sortedMap = new TreeMap<>();
 
-        // Calculate distances and store them in sorted map
-        for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
-            int distance = entry.getKey();
-            for (String node : entry.getValue()) {
-                if (!node.contains("NN:NN")) { // Filter out nodes that don`t have address
+        HashMap<Integer, List<String>> networkMapCopy = new HashMap<>(networkMap);
+
+        for (Map.Entry<Integer, List<String>> entry : networkMapCopy.entrySet()) {
+            List<String> nodesCopy = new ArrayList<>(entry.getValue());
+            for (String node : nodesCopy) {
+                if (!node.contains("NN:NN")) {
                     int nodeDistance = HashID.distance(hashID, HashID.computeHashID(node));
                     sortedMap.putIfAbsent(nodeDistance, new ArrayList<>());
                     sortedMap.get(nodeDistance).add(node);
@@ -687,7 +703,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             }
         }
 
-        // Iterate over sorted distances to find the nearest nodes
         for (Map.Entry<Integer, List<String>> entry : sortedMap.entrySet()) {
             for (String node : entry.getValue()) {
                 if (nearestNodes.size() < 3) {

@@ -30,7 +30,8 @@ public class HashID {
 	public static String bytesToHex(byte[] bytes) {
 		StringBuilder hexString = new StringBuilder(2 * bytes.length);
 		for (byte b : bytes) {
-			String hex = Integer.toHexString(0xFF & b);
+			int unsignedByte = b & 0xFF;
+			String hex = Integer.toHexString(unsignedByte);
 			if (hex.length() == 1) {
 				hexString.append('0');
 			}
@@ -84,14 +85,6 @@ public class HashID {
 
 	public static void main(String[] args) throws Exception
 	{
-//		byte[] hashID = computeHashID("martin.brain@city.ac.uk:MyCoolImplementation,1.41,test-node-2\n");
-//		for (byte b : hashID)
-//		{
-//			System.out.println(b);
-//		}
-//		System.out.println(bytesToHex(computeHashID("Hello World!\n")));
-//		System.out.println(hexToBinary(bytesToHex(hashID)));
-//		System.out.println(distance(computeHashID("ananus\n"), computeHashID("ananus\n")));
 		Scanner scanner = new Scanner(System.in);
 
 		while (true) {
