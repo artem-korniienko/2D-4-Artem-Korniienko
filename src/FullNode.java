@@ -75,6 +75,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         //TODO: test on martins-network
         //TODO: record
         //TODO: submit
+        //TODO: знову робота :(((( п.с перечитав рфц
 
         if (Validator.isValidName(startingNodeName))
             startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");
