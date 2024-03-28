@@ -2,9 +2,9 @@
 // Coursework 2023/2024
 //
 // Submission by
-// YOUR_NAME_GOES_HERE
-// YOUR_STUDENT_ID_NUMBER_GOES_HERE
-// YOUR_EMAIL_GOES_HERE
+// Artem Korniienko
+// 220052548
+// artem.korniienko@city.ac.uk
 
 
 import java.io.*;
@@ -48,7 +48,6 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             return false;
         }
 
-        // Setup fields with information about starting node
         if (Validator.isValidName(startingNodeName))
             startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");
         else
@@ -73,12 +72,14 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer = new OutputStreamWriter(socket.getOutputStream());
 
             String response = reader.readLine();
-            if (response != null && response.startsWith("START")) {
-                System.out.println("Connection established with previous node");
+            String[] returnStartMessage = response.split(" ");
+            if (returnStartMessage[0].equals("START")
+                    && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
+                    && Validator.isValidName(returnStartMessage[2])) {
                 writer.write(sendStartMessage());
                 writer.flush();
             } else {
-                throw new RuntimeException("Failed to connect to previous node");
+                throw new RuntimeException("Have not received START message back. Or the format of the start message is incorrect");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -87,6 +88,8 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         return true;
     }
 
+
+    //Almost BFS to find the closest node. look: activeMapping() in the Full Node
     public String findClosestNode(String hashID) {
         String closestNode = "";
         int difference = Integer.MAX_VALUE;
@@ -209,12 +212,8 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer.write(value);
             writer.flush();
             String response = reader.readLine();
-            if (response.contains("SUCCESS")) {
-                System.out.println("Data stored successfully");
-            } else {
-                System.out.println("Failed to store data");
+            if (!response.contains("SUCCESS"))
                 return false;
-            }
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -237,8 +236,6 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
                 for (int i = 0; i < Integer.parseInt(responseArray[1]); i++) {
                     response += reader.readLine() + "\n";
                 }
-            } else {
-                System.out.println("Failed to retrieve data");
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -257,6 +254,6 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
     }
 
     public String nameGenerator(String nodeInfo) {
-        return emailAddress + ":" + "my-iplementation,test-full-node" + String.valueOf(counter) + "\n";
+        return emailAddress + ":" + "artems-iplementation,temp-node" + String.valueOf(counter) + "\n";
     }
 }

@@ -1,5 +1,6 @@
 import java.net.InetAddress;
 
+//Utility use class, helps encapsulate information about starting node
 public class StartingNode {
 
     private String startingNodeName;

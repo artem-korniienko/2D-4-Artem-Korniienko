@@ -2,6 +2,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.regex.*;
 
+
+//Utility class for validating input address, names.
 public class Validator {
 
     private static Set<String> checkSet = new HashSet<>();

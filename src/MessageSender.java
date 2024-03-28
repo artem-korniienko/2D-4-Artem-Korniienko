@@ -1,6 +1,8 @@
 import java.util.HashMap;
 import java.util.Map;
 
+
+//Utility purpose class, decouples Full and Temp nodes
 public abstract class MessageSender {
     public String nodeName = null;
     public byte[] hashID = null;

@@ -18,12 +18,10 @@ public class HashID {
 			return md.digest();
 
 		} else {
-			// 2D#4 computes hashIDs of lines, i.e. strings ending with '\n'
 			line = line + "\n";
 			MessageDigest md = MessageDigest.getInstance("SHA-256");
 			md.update(line.getBytes(StandardCharsets.UTF_8));
 			return md.digest();
-			//throw new Exception("No new line at the end of input to HashID");
 		}
 	}
 
@@ -83,6 +81,7 @@ public class HashID {
 		return distance - similarBits;
 	}
 
+	//Run this file if you want to get hex of certain string, e.g: nearest request
 	public static void main(String[] args) throws Exception
 	{
 		Scanner scanner = new Scanner(System.in);

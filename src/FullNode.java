@@ -2,9 +2,9 @@
 // Coursework 2023/2024
 //
 // Submission by
-// YOUR_NAME_GOES_HERE
-// YOUR_STUDENT_ID_NUMBER_GOES_HERE
-// YOUR_EMAIL_GOES_HERE
+// Artem Korniienko
+// 220052548
+// artem.korniienko@city.ac.uk
 
 import java.io.*;
 import java.net.InetAddress;
@@ -27,24 +27,21 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
     public StartingNode startingNode;
     public String nodeName;
-    public byte[] hashID;
     public String ipAddress;
     public int portNumber;
+
     public final String emailAddress = "artem.korniienko@city.ac.uk";
     private static int counter = 0; // For naming purposes
     public int maxSupportedVersion = 1;
-    public boolean connectionAccepted = false;
+
 
     private String currentClientName = "NN:NN";
     public HashMap<Integer, List<String>> networkMap;
     public HashMap<String, String> map = new HashMap<>();
 
-    Socket socket;
     ServerSocket serverSocket;
-    Set<String> visitedNodes = new HashSet<>();
 
-
-
+    //I am generating name with random identifier for each one of my full nodes
     public FullNode() {
         Random ran = new Random();
         counter = ran.nextInt(129048);
@@ -52,12 +49,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         super.nodeName = this.nodeName;
     }
 
-    public static int getCounter() {
-        return counter;
-    }
-
     public boolean listen(String ipAddress, int portNumber) {
-
         this.ipAddress = ipAddress;
         this.portNumber = portNumber;
         try {
@@ -67,14 +59,9 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             e.printStackTrace();
             return false;
         }
-        // Implement this!
-        // Return true if the node can accept incoming connections
-        // Return false otherwise;
     }
 
     public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
-        // Create name for current node
-
         // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
         // TODO: ensure i delete everything if incorrect format
         // TODO: check and refactor code if needed
@@ -83,16 +70,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         // TODO: ensure we are not adding duplicate elements(with the same address at least)
         // TODO: check so that we are addinh same addresses but different names
 
-
-        //TODO: refine structure
-        //TODO: delete development comments, add explanation comment
         //TODO: add instruction file
         //TODO: test against all requierments
         //TODO: test on martins-network
         //TODO: record
         //TODO: submit
 
-        // Setup fields with information about starting node
         if (Validator.isValidName(startingNodeName))
             startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");
         else
@@ -104,13 +87,10 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             e.printStackTrace();
         }
 
-        // Setup of ip address and port number of starting node
         if (Validator.isValidAddress(startingNodeAddress)) {
             startingNode.setStartingNodeIpAddress(startingNodeAddress.split(":")[0]);
             startingNode.setStartingNodePortNumber(Integer.parseInt(startingNodeAddress.split(":")[1]));
         }
-
-
 
         networkMap = new HashMap<>();
 
@@ -123,10 +103,10 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         try {
             int startingNodeCounter = 0;
             while (true) {
-                System.out.println("Listening for incoming connections...");
                 if (!isStartingNode()) {
                     if (startingNodeCounter < 1)
-                        connectToStartingNode();
+                        connectToStartingNode(); // if current node is not starting node(starting node address, and address on which this nodes listen for the connections are different)
+                    // then we separately connect to the starting node, this code ommitted if current node is starting node. I also use a counter to ensure that this code is executed only once
                     try {
                         addMapElement(startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
                     }
@@ -134,10 +114,9 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                         e.printStackTrace();
                     }
                 }
-
+                // Constantly checking for any incoming connections
                 try {
                     Socket clientSocket = serverSocket.accept();
-                    System.out.println("Client connected!");
                     handleClientConnection(clientSocket);
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -161,16 +140,23 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             Writer writer = new OutputStreamWriter(socket.getOutputStream());
 
             String response = reader.readLine();
-            if (response != null && response.startsWith("START")) {
-                System.out.println("Connection established with previous node");
+            String[] returnStartMessage = response.split(" ");
+
+            if (returnStartMessage[0].equals("START")
+                    && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
+                    && Validator.isValidName(returnStartMessage[2])) {
+
                 writer.write(sendStartMessage());
                 writer.flush();
+                //Sending notify request straight after the exchange of the start messages in order to provide more network robustness and make sure that this new node is known in the network
                 writer.write("NOTIFY?\n");
                 writer.write(this.nodeName);
                 writer.write(this.ipAddress + ":" + this.portNumber + "\n");
                 writer.flush();
+
                 response = reader.readLine();
                 if (response.contains("NOTIFIED")) {
+                    //Start active mapping, and then schedule it for every 5 seconds
                     activeMapping(reader, writer, startingNode.getStartingNodeName(), startingNode.getStartingNodeIpAddress() + ":" + startingNode.getStartingNodePortNumber());
                     ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
                     executor.scheduleAtFixedRate(() -> {
@@ -195,7 +181,10 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         }
     }
 
+    //Method that is used to query other nodes directories and tries to get whole network map
+    //In fact, this is a try to perform BFS on the network by examining the closest nodes, of the input node, adding them to the map, and adding them to the queue of the nodes that needs to be checked
     private void activeMapping(BufferedReader reader, Writer writer, String nodeName, String nodeAddress) throws Exception {
+
         List<String> nodesToCheck = new ArrayList<>();
         nodeName = nodeName.replace("\n", "");
         nodesToCheck.add(nodeName + " " + nodeAddress);
@@ -205,13 +194,13 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         int i = 0;
 
         while (!nodesToCheck.isEmpty() && i < 1000) {
-            System.out.println("active mapping start");
             List<String> newNodesToCheck = new ArrayList<>();
 
             Iterator<String> iterator = nodesToCheck.iterator();
             while (iterator.hasNext()) {
                 String node = iterator.next();
                 try {
+
                     if (node.contains(this.nodeName.replace("\n", "")))
                         continue;
 
@@ -237,11 +226,10 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             nodesToCheck.addAll(newNodesToCheck);
 
             i++;
-            System.out.println("active mapping end");
         }
-        System.out.println("FINISHED ACTIVE MAPPING");
     }
 
+    //Helper method of the active mapping, connects to a node, sends the nearest requests and gets a string of the nearest nodes in the correct format
     private List<String> sendNearestRequest(String nodeNameAddress) throws Exception{
         List<String> nearestNodes = new LinkedList<>();
         try {
@@ -279,6 +267,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         return nearestNodes;
     }
 
+
+    //Main method with the logic for  responding to requests.
     private void handleClientConnection(Socket clientSocket) throws Exception {
         Thread thread = new Thread(() -> {
             try {
@@ -293,27 +283,16 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                 String message = reader.readLine();
                 String[] returnStartMessage = message.split(" ");
 
-                System.out.println(returnStartMessage[0].equals("START"));
-                System.out.println(returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion)) + " returnMesage[1] " + returnStartMessage[1] + "    String.valuerOF " + String.valueOf(this.maxSupportedVersion));
-                boolean magic = Validator.isValidName(returnStartMessage[2]);
-                System.out.println(magic);
-                System.out.println(returnStartMessage[2]);
-
-
                 if (returnStartMessage[0].equals("START")
                         && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
-                        && magic) {
-                    System.out.println("Node accepted connection.");
+                        && Validator.isValidName(returnStartMessage[2])) {
                     try {
                         addMapElement(returnStartMessage[2]);
                         while ((message = reader.readLine()) != null) {
-                            System.out.println("::::::: " + message + " ::::::::");
                             if (message.equals("ECHO?")) {
-                                System.out.println("Received ECHO? request");
                                 writer.write(sendOhceMessage() + "\n");
                                 writer.flush();
                             } else if (message.equals("OHCE")) {
-                                System.out.println("Received OHCE");
                             } else if ((message.equals("SHOWMAP?")))
                             {
                                 writer.write(getNetworkMap());
@@ -453,24 +432,16 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                         if (entry.getKey().contains(nodeName))
                                             shouldContain = true;
                                     }
-                                    if (shouldContain)
-                                    {
+                                    if (shouldContain) {
                                         map.put(HashID.bytesToHex(requestHASHID), valueBuilder.toString());
                                         writer.write(sendSuccessMessage());
                                         writer.flush();
-                                        for (Map.Entry<String, String> entry : map.entrySet())
-                                        {
-                                            System.out.println(entry.getKey() + ":" + entry.getValue());
-                                        }
                                     }
-                                    else
-                                    {
+                                    else {
                                         writer.write(sendFailedMessage());
                                         writer.flush();
                                     }
                                 } else {
-                                    System.out.println("Invalid PUT request format");
-                                    // Respond with an error message
                                     writer.write("Invalid PUT request format\n");
                                     writer.flush();
                                     if (!clientAddress.equals("NN:NN"))
@@ -480,7 +451,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 // For NOTIFY? after connection
                             }
                             else if ((message.contains("END"))) {
-                                System.out.println("Received END request. Closing connection.");
                                 writer.write(sendEndMessage("Recieved-END-request"));
                                 writer.flush();
                                 if (!clientAddress.equals("NN:NN"))
@@ -530,13 +500,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         }
     }
 
+    //Adding elements to the map of the node, if there are more than 3 nodes on certain distance, I remove the oldest one and add a new one
     public synchronized void addMapElement(String addedNodeName) throws Exception {
         int distance = calculateDistance(addedNodeName);
-        System.out.println("DISTANCE: "+ distance);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
 
         if (nodeList.size() >= 3) {
-            // Remove the oldest node
             nodeList.remove(0);
         }
         String nodeWithAddress = addedNodeName + " NN:NN";
@@ -580,60 +549,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     {
         return HashID.distance(HashID.computeHashID(nodeName), HashID.computeHashID(secondNodeName));
     }
-    public void handleNotify(String message, BufferedReader reader, BufferedWriter writer) throws Exception
-    {
-        boolean contains = false;
-        StringBuilder nameBuilder = new StringBuilder();
-        StringBuilder addressBuilder = new StringBuilder();
-        StringBuilder newAddress = new StringBuilder();
-        for (int i = 0; i < 1; i++) {
-            nameBuilder.append(reader.readLine());
-        }
-        for (int i = 0; i < 1; i++) {
-            addressBuilder.append(reader.readLine());
-        }
-
-        for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
-            List<String> nodeList = entry.getValue();
-            for (int i = 0; i < nodeList.size(); i++) {
-                String nameAddress = nodeList.get(i);
-                if (nameAddress.contains(nameBuilder.toString())) {
-                    String[] addressArray = nameAddress.split(" ");
-                    addressArray[1] = addressBuilder.toString().trim();
-                    newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
-                    nodeList.set(i, newAddress.toString());
-                    contains = true;
-                    break;
-                }
-            }
-        }
-        if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
-        {
-            addMapElement(nameBuilder.toString());
-            for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
-                List<String> nodeList = entry.getValue();
-                for (int i = 0; i < nodeList.size(); i++) {
-                    String nameAddress = nodeList.get(i);
-                    if (nameAddress.contains(nameBuilder.toString())) {
-                        String[] addressArray = nameAddress.split(" ");
-                        addressArray[1] = addressBuilder.toString().trim();
-                        newAddress.append(addressArray[0]).append(" ").append(addressArray[1]);
-                        nodeList.set(i, newAddress.toString());
-                        contains = true;
-                        break;
-                    }
-                }
-            }
-        }
-        writer.write(sendNotifiedMessage());
-        writer.flush();
-    }
-    public void sendEchoMessage(Socket socket) throws IOException {
-        try (Writer writer = new OutputStreamWriter(socket.getOutputStream())) {
-            writer.write(sendEchoMessage() + "\n");
-            writer.flush();
-        }
-    }
     public void sendPutMessage(Socket socket) throws IOException {
         try (Writer writer = new OutputStreamWriter(socket.getOutputStream())) {
             writer.write("PUT? 1 1");
@@ -650,6 +565,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         }
         return newLineCharacterCounter;
     }
+    //Used for utility purposes, used with SHOWMAP? request
     public String getNetworkMap() {
         StringBuilder result = new StringBuilder();
 
@@ -716,13 +632,15 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         return nearestNodes;
     }
     public String nameGenerator(String nodeInfo) {
-        return emailAddress + ":" + "my-implementation,test-full-node" + nodeInfo + FullNode.getCounter() + "\n";
+        return emailAddress + ":" + "artems-implementation,full-node" + nodeInfo + FullNode.getCounter() + "\n";
     }
     public synchronized void setSynchronizedClientName(String value) {
         this.currentClientName= value;
     }
-
     public synchronized String getSynchronizedClientName() {
         return currentClientName;
+    }
+    public static int getCounter() {
+        return counter;
     }
 }
