@@ -88,10 +88,12 @@ public class HashID {
 
 		while (true) {
 			System.out.print("Enter a string: ");
-			String input = scanner.nextLine();
+			String input1 = scanner.nextLine();
+			String input2 = scanner.nextLine();
 
-			String hexString = bytesToHex(computeHashID((input + "\n")));
+			String hexString = bytesToHex(computeHashID((input1 + "\n")));
 			System.out.println("Hexadecimal representation: " + hexString);
 			System.out.println("Binary representation: " + hexToBinary(hexString));
+			System.out.println("Distance: " + distance(input1, input2));
 		}
 	}}

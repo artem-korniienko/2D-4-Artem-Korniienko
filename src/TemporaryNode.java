@@ -75,7 +75,7 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             String[] returnStartMessage = response.split(" ");
             if (returnStartMessage[0].equals("START")
                     && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
-                    && Validator.isValidName(returnStartMessage[2])) {
+            ) {
                 writer.write(sendStartMessage());
                 writer.flush();
             } else {
@@ -200,6 +200,7 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
     }
 
     public boolean store(String key, String value) {
+        boolean result = false;
         if (!key.endsWith("\n"))
             key += "\n";
         if (!value.endsWith("\n"))
@@ -212,14 +213,41 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
             writer.write(value);
             writer.flush();
             String response = reader.readLine();
+            List<String> nearestNodes = sendNearestRequest(HashID.bytesToHex(HashID.computeHashID(key)));
+            Socket nearestSocket;
+            for (String node : nearestNodes) {
+                nearestSocket = new Socket(node.split(" ")[1].split(":")[0], Integer.parseInt(node.split(" ")[1].split(":")[1]));
+
+                BufferedReader nearestReader = new BufferedReader(new InputStreamReader(nearestSocket.getInputStream()));
+                Writer nearestWriter = new OutputStreamWriter(nearestSocket.getOutputStream());
+
+                Random ran = new Random();
+
+                nearestWriter.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForStoring" + ran.nextInt(321541) + "\n");
+                nearestWriter.flush();
+                nearestReader.readLine();
+
+                nearestWriter.write(sendPutMessage(keyLines, valueLines));
+                nearestWriter.write(key);
+                nearestWriter.write(value);
+                nearestWriter.flush();
+
+                String nearestResponse = nearestReader.readLine();
+                if (nearestResponse.startsWith("SUCCESS")) {
+                    result = true;
+                } else {
+                    System.out.println("Was not able to put in the nearest node.");
+                }
+            }
             if (!response.contains("SUCCESS"))
-                return false;
+                result = true;
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
+            result = false;
         }
-        return true;
+        return result;
     }
+
 
     public String get(String key) {
         if (!key.endsWith("\n"))

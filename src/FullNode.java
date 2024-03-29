@@ -103,6 +103,53 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
         try {
             int startingNodeCounter = 0;
+            // That helps to maintain robustness by implementing this part of the protocol: "If a full node is no longer one of the closest three nodes to a
+            //   value it has stores it SHOULD contact the three closest nodes and
+            //   store the value with them."
+            ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+            executor.scheduleAtFixedRate(() -> {
+                for (Map.Entry<String, String> entry : map.entrySet()) {
+                    try {
+                        boolean shouldContain = false;
+                        Socket nearestSocket;
+                        List<String> nearest = new ArrayList<>();
+                        for (Map.Entry<String, Integer> entry1 : findThreeNearestNodes(entry.getKey()).entrySet()){
+                            nearest.add(entry1.getKey());
+                        }
+                        for (String node : nearest) {
+                            if (node.contains(this.nodeName))
+                                shouldContain = true;
+                        }
+                        if (!shouldContain){
+                            for (String node : nearest){
+                                nearestSocket = new Socket(node.split(" ")[1].split(":")[0], Integer.parseInt(node.split(" ")[1].split(":")[1]));
+
+                                BufferedReader nearestReader = new BufferedReader(new InputStreamReader(nearestSocket.getInputStream()));
+                                Writer nearestWriter = new OutputStreamWriter(nearestSocket.getOutputStream());
+
+                                Random ran = new Random();
+
+                                nearestWriter.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForStoring" + ran.nextInt(321541) + "\n");
+                                nearestWriter.flush();
+                                nearestReader.readLine();
+
+                                nearestWriter.write(sendPutMessage(calculateNewLineCharacrter(entry.getKey()), calculateNewLineCharacrter(entry.getValue())));
+                                nearestWriter.write(entry.getKey());
+                                nearestWriter.write(entry.getValue());
+                                nearestWriter.flush();
+
+                                nearestReader.readLine();
+                            }
+                        }
+
+                        calculateDistance(entry.getKey());
+                    }
+                    catch (Exception e)
+                    {
+                        e.printStackTrace();
+                    }
+                }
+            }, 0, 5, TimeUnit.SECONDS);
             while (true) {
                 if (!isStartingNode()) {
                     if (startingNodeCounter < 1)
@@ -145,7 +192,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
             if (returnStartMessage[0].equals("START")
                     && returnStartMessage[1].equals(String.valueOf(this.maxSupportedVersion))
-                    && Validator.isValidName(returnStartMessage[2])) {
+                    ) {
 
                 writer.write(sendStartMessage());
                 writer.flush();
@@ -298,7 +345,11 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                             {
                                 writer.write(getNetworkMap());
                                 writer.flush();
-                            } else if ((message.startsWith("NEAREST?"))) {
+                            } else if (message.equals("SHOWVALUES?")){
+                                writer.write(getHashMapAsString());
+                                writer.flush();
+                            }
+                            else if ((message.startsWith("NEAREST?"))) {
                                 String[] parts = (message.split(" "));
                                 if (parts.length == 2) {
                                     HashMap<String, Integer> nearest = findThreeNearestNodes(parts[1]);
@@ -310,6 +361,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     writer.flush();
                                     if (!clientAddress.equals("NN:NN"))
                                         deleteMapElement(clientAddress);
+                                    break;
                                 }
                             } else if ((message.equals("NOTIFY?"))){
 
@@ -323,7 +375,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                 for (int i = 0; i < 1; i++) {
                                     addressBuilder.append(reader.readLine());
                                 }
-
+                                boolean wasHere = true;
                                 for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
                                     List<String> nodeList = entry.getValue();
                                     for (int i = 0; i < nodeList.size(); i++) {
@@ -336,7 +388,12 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                             contains = true;
                                             break;
                                         }
+                                        else
+                                            wasHere = false;
                                     }
+                                }
+                                if (!wasHere){
+                                    addMapElement(nameBuilder.toString(), addressBuilder.toString());
                                 }
                                 if (!contains && Validator.isValidName(nameBuilder.toString()) && Validator.isValidAddress(addressBuilder.toString()))
                                 {
@@ -379,16 +436,18 @@ public class FullNode extends MessageSender implements FullNodeInterface {
 
                                     StringBuilder keyBuilder = new StringBuilder();
                                     for (int i = 0; i < keyLines; i++) {
-                                        keyBuilder.append(reader.readLine()).append("\n");
+                                        String key = reader.readLine();
+                                        if (key.endsWith("\n"))
+                                            keyBuilder.append(key);
+                                        else
+                                            keyBuilder.append(key + "\n");
                                     }
-
-                                    byte[] requestHASHID = HashID.computeHashID(keyBuilder.toString());
 
                                     String value = "";
 
                                     for (Map.Entry<String, String> entry : map.entrySet())
                                     {
-                                        if (entry.getKey().equals(HashID.bytesToHex(requestHASHID))) {
+                                        if (entry.getKey().equals(keyBuilder.toString())) {
                                             contains = true;
                                             value = entry.getValue();
                                         }
@@ -408,6 +467,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                     writer.flush();
                                     if (!clientAddress.equals("NN:NN"))
                                         deleteMapElement(clientAddress);
+                                    break;
                                 }
                             }
 
@@ -434,7 +494,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                             shouldContain = true;
                                     }
                                     if (shouldContain) {
-                                        map.put(HashID.bytesToHex(requestHASHID), valueBuilder.toString());
+                                        map.put(keyBuilder.toString(), valueBuilder.toString());
                                         writer.write(sendSuccessMessage());
                                         writer.flush();
                                     }
@@ -443,10 +503,11 @@ public class FullNode extends MessageSender implements FullNodeInterface {
                                         writer.flush();
                                     }
                                 } else {
-                                    writer.write("Invalid PUT request format\n");
+                                    writer.write(sendEndMessage("Invalid PUT request format\n"));
                                     writer.flush();
                                     if (!clientAddress.equals("NN:NN"))
                                         deleteMapElement(clientAddress);
+                                    break;
                                 }
                             } else if (message.equals("")) {
                                 // For NOTIFY? after connection
@@ -505,7 +566,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public synchronized void addMapElement(String addedNodeName) throws Exception {
         int distance = calculateDistance(addedNodeName);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
-
         if (nodeList.size() >= 3) {
             nodeList.remove(0);
         }
@@ -515,7 +575,8 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         }
         if (!nodeList.contains(nodeWithAddress) && !containsSameIP(nodeWithAddress.split(" ")[1])) {
             nodeList.add(nodeWithAddress);
-            networkMap.put(distance, nodeList);
+            if (!nodeWithAddress.contains("dummy"))
+                networkMap.put(distance, nodeList);
         }
     }
     public synchronized boolean containsSameIP(String ip)
@@ -533,7 +594,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     public synchronized void addMapElement(String addedNodeName, String addedNodeAddress) throws Exception {
         int distance = calculateDistance(addedNodeName);
         List<String> nodeList = networkMap.getOrDefault(distance, new ArrayList<>());
-
         if (nodeList.size() >= 3) {
             nodeList.remove(0);
         }
@@ -607,9 +667,7 @@ public class FullNode extends MessageSender implements FullNodeInterface {
         HashMap<String, Integer> nearestNodes = new HashMap<>();
         TreeMap<Integer, List<String>> sortedMap = new TreeMap<>();
 
-        HashMap<Integer, List<String>> networkMapCopy = new HashMap<>(networkMap);
-
-        for (Map.Entry<Integer, List<String>> entry : networkMapCopy.entrySet()) {
+        for (Map.Entry<Integer, List<String>> entry : networkMap.entrySet()) {
             List<String> nodesCopy = new ArrayList<>(entry.getValue());
             for (String node : nodesCopy) {
                 if (!node.contains("NN:NN")) {
@@ -620,18 +678,34 @@ public class FullNode extends MessageSender implements FullNodeInterface {
             }
         }
 
+        int count = 0;
         for (Map.Entry<Integer, List<String>> entry : sortedMap.entrySet()) {
             for (String node : entry.getValue()) {
-                if (nearestNodes.size() < 3) {
+                if (count < 3) {
                     nearestNodes.put(node, entry.getKey());
+                    count++;
                 } else {
                     return nearestNodes;
                 }
             }
         }
-
         return nearestNodes;
     }
+
+    public String getHashMapAsString() {
+        StringBuilder result = new StringBuilder();
+
+        result.append("Map of the current node:\n");
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+
+            result.append("Key: ").append(key).append(", Value: ").append(value).append("\n");
+        }
+
+        return result.toString();
+    }
+
     public String nameGenerator(String nodeInfo) {
         return emailAddress + ":" + "artems-implementation,full-node" + nodeInfo + FullNode.getCounter() + "\n";
     }
