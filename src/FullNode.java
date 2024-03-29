@@ -62,20 +62,6 @@ public class FullNode extends MessageSender implements FullNodeInterface {
     }
 
     public void handleIncomingConnections(String startingNodeName, String startingNodeAddress) {
-        // TODO: check my implementations regarding start package(all the types of methods that return something, fields for the name)
-        // TODO: ensure i delete everything if incorrect format
-        // TODO: check and refactor code if needed
-        // TODO: reared specification and carefully test with lots of nodes
-        // TODO: submit :)
-        // TODO: ensure we are not adding duplicate elements(with the same address at least)
-        // TODO: check so that we are addinh same addresses but different names
-
-        //TODO: add instruction file
-        //TODO: test against all requierments
-        //TODO: test on martins-network
-        //TODO: record
-        //TODO: submit
-        //TODO: знову робота :(((( п.с перечитав рфц
 
         if (Validator.isValidName(startingNodeName))
             startingNode = new StartingNode(startingNodeName.endsWith("\n") ? startingNodeName : startingNodeName + "\n");

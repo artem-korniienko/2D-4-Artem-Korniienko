@@ -248,6 +248,42 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         return result;
     }
 
+    private List<String> sendNearestRequest(String nodeNameAddress, String key) throws Exception{
+        List<String> nearestNodes = new LinkedList<>();
+        try {
+            String[] nodeNameAddressParts = nodeNameAddress.split(" ");
+            String ipAddress = nodeNameAddressParts[1].split(":")[0];
+            int portNumber = Integer.parseInt(nodeNameAddressParts[1].split(":")[1]);
+
+            Socket socket = new Socket(ipAddress, portNumber);
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            Writer writer = new OutputStreamWriter(socket.getOutputStream());
+
+            Random ran = new Random();
+            writer.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForActiveMapping" + ran.nextInt(321541) + "\n");
+            writer.flush();
+            reader.readLine();
+
+            writer.write("NEAREST? " + HashID.bytesToHex(HashID.computeHashID(key)) + "\n");
+            writer.flush();
+
+            String response = reader.readLine();
+            if (response != null && response.startsWith("NODES")) {
+                int numberOfNodes = Integer.parseInt(response.split(" ")[1]);
+                for (int i = 0; i < numberOfNodes; i++) {
+                    String nodeNameAddressResponse = reader.readLine().trim();
+                    nodeNameAddressResponse += " " + reader.readLine();
+                    nearestNodes.add(nodeNameAddressResponse);
+                }
+            }
+
+            socket.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return nearestNodes;
+    }
 
     public String get(String key) {
         if (!key.endsWith("\n"))
@@ -268,6 +304,71 @@ public class TemporaryNode extends MessageSender implements TemporaryNodeInterfa
         } catch (Exception e) {
             e.printStackTrace();
         }
+        List<String> nodesToCheck = new ArrayList<>();
+        nodesToCheck.add(this.startingNode.getStartingNodeName().replace("\n", "") + " " + this.startingNode.getStartingNodeIpAddress() + ":" + this.startingNode.getStartingNodePortNumber());
+
+        Set<String> visitedNodes = new HashSet<>();
+
+        int i = 0;
+
+        while (!nodesToCheck.isEmpty() && i < 1000) {
+            List<String> newNodesToCheck = new ArrayList<>();
+
+            Iterator<String> iterator = nodesToCheck.iterator();
+            while (iterator.hasNext()) {
+                String node = iterator.next();
+                try {
+                    Socket nearestSocket;
+                    if (node.contains(this.nodeName.replace("\n", "")))
+                        continue;
+
+                    if (!visitedNodes.contains(node.split(" ")[1])) {
+                        List<String> nearestNodes = sendNearestRequest(node, key);
+                        iterator.remove();
+
+                        for (String nearestNode : nearestNodes) {
+                            if (!nearestNode.contains(this.startingNode.getStartingNodeName().replace("\n", ""))){
+                                String nearestNodeName = nearestNode.split(" ")[0];
+                                String nearestNodeAddress = nearestNode.split(" ")[1];
+                                nearestSocket = new Socket(nearestNodeAddress.split(":")[0], Integer.parseInt(nearestNodeAddress.split(":")[1]));
+                                BufferedReader nearestReader = new BufferedReader(new InputStreamReader(nearestSocket.getInputStream()));
+                                Writer nearestWriter = new OutputStreamWriter(nearestSocket.getOutputStream());
+
+                                Random ran = new Random();
+
+                                nearestReader.readLine();
+                                nearestWriter.write("START " + this.maxSupportedVersion + " " + this.emailAddress + ":dummyNodeForGetting" + ran.nextInt(321541) + "\n");
+                                nearestWriter.flush();
+                                nearestWriter.write(sendGetMessage(calculateNewLineCharacrter(key)));
+                                nearestWriter.write(key);
+                                nearestWriter.flush();
+
+                                String nearestResponse = nearestReader.readLine();
+                                if (!nearestResponse.equals("NOPE")){
+                                    String[] responseArray = nearestResponse.split(" ");
+                                    nearestResponse = "";
+                                    for (int j = 0; j < Integer.parseInt(responseArray[1]); j++) {
+                                        nearestResponse += nearestReader.readLine() + "\n";
+                                    }
+                                    response = nearestResponse;
+                                }
+                                if (!visitedNodes.contains(nearestNode.split(" ")[1]))
+                                    newNodesToCheck.add(nearestNodeName + " " + nearestNodeAddress);
+                            }
+                        }
+                        visitedNodes.add(node.split(" ")[1]);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    break;
+                }
+            }
+
+            nodesToCheck.addAll(newNodesToCheck);
+
+            i++;
+        }
+
         return response;
     }
 

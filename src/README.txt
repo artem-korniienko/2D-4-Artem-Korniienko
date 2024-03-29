@@ -1,7 +1,7 @@
 
 
 
-
+Video proof of my coursework working: https://www.youtube.com/watch?v=gsVR-H0Km0U
 
 In order to run my implementation you need to:
  - Compile all the classes
@@ -29,7 +29,7 @@ To run temporary node:
   - Starting node address in the correct format(e.g: 127.0.0.1:10000)
   - HashID
 
-
+I think my code can do: Everything that is specified in the marking scheme and RFC.
 My code provides full functionality of the 2D#4 network.
 It can:
 – Act as a temporary node as described in the RFC.

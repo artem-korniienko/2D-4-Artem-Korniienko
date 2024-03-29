@@ -1,0 +1,10 @@
+START 1 artem.korniienko@city.ac.uk:dummyNodeForActiveMapping123653
+START 1 martin.brain@city.ac.uk:martins-implementation-1.0,fullNode-20000
+NEAREST? 71d5a87c29a95ba236c01a4204676e3fbd860f789c5062278844b3b16753266b
+NODES 3
+martin.brain@city.ac.uk:martins-implementation-1.0,fullNode-20008
+10.0.0.164:20008
+romeo.montague@verona.it:romeo-messenger-3,20011
+10.0.0.164:20011
+martin.brain@city.ac.uk:martins-implementation-1.0,fullNode-20010
+10.0.0.164:20010

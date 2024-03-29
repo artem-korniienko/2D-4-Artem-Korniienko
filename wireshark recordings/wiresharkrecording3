@@ -1,0 +1,5 @@
+START 1 martin.brain@city.ac.uk:martins-implementation-1.0,fullNode-20000
+START 1 artem.korniienko@city.ac.uk:dummyNodeForGetting90919
+GET? 1
+test/jabberwocky/7
+NOPE
